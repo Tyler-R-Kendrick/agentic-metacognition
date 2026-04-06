@@ -301,14 +301,20 @@ class AdaptiveActivationSteerer:
         self.layer_idx = layer_idx
         self.vector = torch.as_tensor(vector, dtype=torch.float32).detach().cpu()
         self.probe = probe
+        self.probe_weight = torch.as_tensor(probe.coef_[0], dtype=torch.float32).detach()
+        self.probe_bias = torch.as_tensor(float(probe.intercept_[0]), dtype=torch.float32).detach()
         self.alpha = alpha
         self.beta = beta
         self.hook_handle = None
 
     def _get_scale(self, hidden: torch.Tensor) -> float:
-        last_hidden = hidden[0, -1, :].detach().float().cpu().numpy().reshape(1, -1)
-        p_positive = float(self.probe.predict_proba(last_hidden)[0, 1])
-        return self.alpha * (1.0 - p_positive + self.beta)
+        last_hidden = hidden[0, -1, :].detach()
+        probe_weight = self.probe_weight.to(device=last_hidden.device, dtype=last_hidden.dtype)
+        probe_bias = self.probe_bias.to(device=last_hidden.device, dtype=last_hidden.dtype)
+        logit = torch.dot(last_hidden, probe_weight) + probe_bias
+        p_positive = torch.sigmoid(logit)
+        scale = self.alpha * (1.0 - float(p_positive) + self.beta)
+        return scale
 
     def _hook_fn(self, module, inputs, output):
         hidden, rest = ActivationSteerer._split_output(output)
