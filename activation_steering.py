@@ -29,7 +29,6 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, set_seed
 
 SEED = 42
 set_seed(SEED)
-torch.set_grad_enabled(False)
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 DEFAULT_MODEL = "Qwen/Qwen2.5-0.5B-Instruct"
