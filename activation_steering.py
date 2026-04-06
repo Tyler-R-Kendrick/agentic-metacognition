@@ -150,6 +150,19 @@ def get_last_token_hidden(
     return hidden_states[layer_idx + 1][0, -1, :].detach().float().cpu()
 
 
+def collect_last_token_hiddens(
+    texts: list[str],
+    layer_idx: int,
+    model,
+    tokenizer,
+    device: str | torch.device,
+) -> torch.Tensor:
+    """Collect final-token hidden states for a batch of input texts."""
+    return torch.stack(
+        [get_last_token_hidden(text, layer_idx, model, tokenizer, device) for text in texts]
+    )
+
+
 def build_mean_difference_vector(
     positive_examples: list[str],
     negative_examples: list[str],
@@ -159,12 +172,8 @@ def build_mean_difference_vector(
     device: str | torch.device,
 ):
     """Build a normalized mean-difference steering vector."""
-    pos = torch.stack(
-        [get_last_token_hidden(text, layer_idx, model, tokenizer, device) for text in positive_examples]
-    )
-    neg = torch.stack(
-        [get_last_token_hidden(text, layer_idx, model, tokenizer, device) for text in negative_examples]
-    )
+    pos = collect_last_token_hiddens(positive_examples, layer_idx, model, tokenizer, device)
+    neg = collect_last_token_hiddens(negative_examples, layer_idx, model, tokenizer, device)
     vec = pos.mean(dim=0) - neg.mean(dim=0)
     vec = vec / (vec.norm() + 1e-8)
     return vec, pos, neg
@@ -187,20 +196,29 @@ class ActivationSteerer:
         self.alpha = alpha
         self.hook_handle = None
 
-    def _hook_fn(self, module, inputs, output):
+    @staticmethod
+    def _split_output(output):
         if isinstance(output, tuple):
-            hidden = output[0]
-            rest = output[1:]
-        else:
-            hidden = output
-            rest = None
+            return output[0], output[1:]
+        return output, None
 
-        correction = (self.alpha * self.vector).view(1, 1, -1).to(hidden.device, dtype=hidden.dtype)
-        steered = hidden + correction
-
+    @staticmethod
+    def _merge_output(hidden, rest):
         if rest is None:
-            return steered
-        return (steered, *rest)
+            return hidden
+        return (hidden, *rest)
+
+    def get_scale(self, hidden: torch.Tensor) -> float:
+        return self.alpha
+
+    def apply_steering(self, hidden: torch.Tensor) -> torch.Tensor:
+        scale = self.get_scale(hidden)
+        correction = (scale * self.vector).view(1, 1, -1).to(hidden.device, dtype=hidden.dtype)
+        return hidden + correction
+
+    def _hook_fn(self, module, inputs, output):
+        hidden, rest = self._split_output(output)
+        return self._merge_output(self.apply_steering(hidden), rest)
 
     def __enter__(self):
         block = get_transformer_layers(self.model)[self.layer_idx]
@@ -244,12 +262,8 @@ def train_probe(
     device: str | torch.device,
 ):
     """Train a tiny logistic-regression probe and return its normalized vector."""
-    pos = torch.stack(
-        [get_last_token_hidden(text, layer_idx, model, tokenizer, device) for text in positive_examples]
-    )
-    neg = torch.stack(
-        [get_last_token_hidden(text, layer_idx, model, tokenizer, device) for text in negative_examples]
-    )
+    pos = collect_last_token_hiddens(positive_examples, layer_idx, model, tokenizer, device)
+    neg = collect_last_token_hiddens(negative_examples, layer_idx, model, tokenizer, device)
     X = torch.cat([pos, neg], dim=0).numpy()
     y = np.array([1] * len(pos) + [0] * len(neg))
 
@@ -286,23 +300,16 @@ class AdaptiveActivationSteerer:
         self.beta = beta
         self.hook_handle = None
 
-    def _hook_fn(self, module, inputs, output):
-        if isinstance(output, tuple):
-            hidden = output[0]
-            rest = output[1:]
-        else:
-            hidden = output
-            rest = None
-
+    def _get_scale(self, hidden: torch.Tensor) -> float:
         last_hidden = hidden[0, -1, :].detach().float().cpu().numpy().reshape(1, -1)
         p_positive = float(self.probe.predict_proba(last_hidden)[0, 1])
-        scale = self.alpha * (1.0 - p_positive + self.beta)
-        correction = (scale * self.vector).view(1, 1, -1).to(hidden.device, dtype=hidden.dtype)
-        steered = hidden + correction
+        return self.alpha * (1.0 - p_positive + self.beta)
 
-        if rest is None:
-            return steered
-        return (steered, *rest)
+    def _hook_fn(self, module, inputs, output):
+        hidden, rest = ActivationSteerer._split_output(output)
+        scale = self._get_scale(hidden)
+        correction = (scale * self.vector).view(1, 1, -1).to(hidden.device, dtype=hidden.dtype)
+        return ActivationSteerer._merge_output(hidden + correction, rest)
 
     def __enter__(self):
         block = get_transformer_layers(self.model)[self.layer_idx]
@@ -333,17 +340,28 @@ def collect_evaluation_rows(
     rows = []
     for prompt in prompts:
         baseline = generate(prompt, model, tokenizer, device, max_new_tokens=max_new_tokens)
-        with ActivationSteerer(model, layer_idx, steering_vector, alpha=fixed_alpha):
-            fixed = generate(prompt, model, tokenizer, device, max_new_tokens=max_new_tokens)
-        with AdaptiveActivationSteerer(
+        fixed = generate_with_steering(
+            prompt,
             model,
+            tokenizer,
+            layer_idx,
+            steering_vector,
+            device,
+            alpha=fixed_alpha,
+            max_new_tokens=max_new_tokens,
+        )
+        adaptive = generate_with_adaptive_steering(
+            prompt,
+            model,
+            tokenizer,
             layer_idx,
             probe_vector,
             probe,
+            device,
             alpha=adaptive_alpha,
             beta=beta,
-        ):
-            adaptive = generate(prompt, model, tokenizer, device, max_new_tokens=max_new_tokens)
+            max_new_tokens=max_new_tokens,
+        )
         rows.append(
             {
                 "prompt": prompt,
@@ -353,6 +371,38 @@ def collect_evaluation_rows(
             }
         )
     return rows
+
+
+def generate_with_steering(
+    prompt: str,
+    model,
+    tokenizer,
+    layer_idx: int,
+    steering_vector: torch.Tensor,
+    device: str | torch.device,
+    alpha: float = 1.5,
+    max_new_tokens: int = MAX_NEW_TOKENS,
+) -> str:
+    """Generate with a fixed steering vector applied at one layer."""
+    with ActivationSteerer(model, layer_idx, steering_vector, alpha=alpha):
+        return generate(prompt, model, tokenizer, device, max_new_tokens=max_new_tokens)
+
+
+def generate_with_adaptive_steering(
+    prompt: str,
+    model,
+    tokenizer,
+    layer_idx: int,
+    probe_vector: torch.Tensor,
+    probe,
+    device: str | torch.device,
+    alpha: float = 2.0,
+    beta: float = 0.0,
+    max_new_tokens: int = MAX_NEW_TOKENS,
+) -> str:
+    """Generate with adaptive probe-scaled steering applied at one layer."""
+    with AdaptiveActivationSteerer(model, layer_idx, probe_vector, probe, alpha=alpha, beta=beta):
+        return generate(prompt, model, tokenizer, device, max_new_tokens=max_new_tokens)
 
 
 def run_demo():
@@ -385,19 +435,38 @@ def run_demo():
         print("\nBASELINE")
         print(generate(prompt, model, tokenizer, device, max_new_tokens=40))
         print("\nSTEERED (alpha=1.5)")
-        with ActivationSteerer(model, DEFAULT_LAYER_IDX, steering_vector, alpha=1.5):
-            print(generate(prompt, model, tokenizer, device, max_new_tokens=40))
+        print(
+            generate_with_steering(
+                prompt,
+                model,
+                tokenizer,
+                DEFAULT_LAYER_IDX,
+                steering_vector,
+                device,
+                alpha=1.5,
+                max_new_tokens=40,
+            )
+        )
         print()
 
     sweep_prompt = "Question: What is the capital of Germany?\nAnswer:"
     for alpha in [0.0, 0.5, 1.0, 1.5, 2.0]:
         print("\n" + "#" * 100)
         print(f"alpha = {alpha}")
-        if alpha == 0.0:
-            print(generate(sweep_prompt, model, tokenizer, device, max_new_tokens=40))
-        else:
-            with ActivationSteerer(model, DEFAULT_LAYER_IDX, steering_vector, alpha=alpha):
-                print(generate(sweep_prompt, model, tokenizer, device, max_new_tokens=40))
+        print(
+            generate(sweep_prompt, model, tokenizer, device, max_new_tokens=40)
+            if alpha == 0.0
+            else generate_with_steering(
+                sweep_prompt,
+                model,
+                tokenizer,
+                DEFAULT_LAYER_IDX,
+                steering_vector,
+                device,
+                alpha=alpha,
+                max_new_tokens=40,
+            )
+        )
 
     probe, probe_vector = train_probe(
         POSITIVE_TEXTS,
@@ -413,11 +482,33 @@ def run_demo():
     print("BASELINE")
     print(generate(compare_prompt, model, tokenizer, device, max_new_tokens=40))
     print("\nFIXED STEERING (mean-diff vector)")
-    with ActivationSteerer(model, DEFAULT_LAYER_IDX, steering_vector, alpha=1.5):
-        print(generate(compare_prompt, model, tokenizer, device, max_new_tokens=40))
+    print(
+        generate_with_steering(
+            compare_prompt,
+            model,
+            tokenizer,
+            DEFAULT_LAYER_IDX,
+            steering_vector,
+            device,
+            alpha=1.5,
+            max_new_tokens=40,
+        )
+    )
     print("\nADAPTIVE STEERING (probe vector)")
-    with AdaptiveActivationSteerer(model, DEFAULT_LAYER_IDX, probe_vector, probe, alpha=2.0, beta=0.0):
-        print(generate(compare_prompt, model, tokenizer, device, max_new_tokens=40))
+    print(
+        generate_with_adaptive_steering(
+            compare_prompt,
+            model,
+            tokenizer,
+            DEFAULT_LAYER_IDX,
+            probe_vector,
+            probe,
+            device,
+            alpha=2.0,
+            beta=0.0,
+            max_new_tokens=40,
+        )
+    )
 
     rows = collect_evaluation_rows(
         EVALUATION_PROMPTS,
