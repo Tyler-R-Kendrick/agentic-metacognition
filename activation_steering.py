@@ -145,6 +145,12 @@ def get_last_token_hidden(
     hidden_states[0] is the embedding output, so block layer_idx lives at
     hidden_states[layer_idx + 1].
     """
+    num_layers = len(get_transformer_layers(model))
+    if layer_idx < 0 or layer_idx >= num_layers:
+        raise ValueError(
+            f"Invalid layer_idx {layer_idx}; expected a transformer block index "
+            f"in the range [0, {num_layers - 1}] for this model."
+        )
     hidden_states = get_hidden_states(text, model, tokenizer, device)
     return hidden_states[layer_idx + 1][0, -1, :].detach().float().cpu()
 
