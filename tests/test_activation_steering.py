@@ -478,3 +478,78 @@ def test_get_standard_activations_filters_by_category():
 def test_get_standard_activations_rejects_unknown_model():
     with pytest.raises(ValueError, match="Unknown model_name"):
         steering.get_standard_activations(model_name="unknown-model")
+
+
+def test_feature_example_round_trips_to_dict():
+    example = steering.FeatureExample(
+        text="Question: 2 + 2?\nAnswer: 4",
+        label="positive",
+        metadata={"source": "unit-test"},
+    )
+    restored = steering.FeatureExample.from_dict(example.to_dict())
+    assert restored.text == example.text
+    assert restored.label == example.label
+    assert restored.metadata == {"source": "unit-test"}
+
+
+def test_build_feature_spec_validates_and_filters_texts():
+    spec = steering.build_feature_spec(
+        name="math_reasoning",
+        model_name="gpt2",
+        category="reasoning_strategy",
+        summary="Capture multi-step arithmetic reasoning.",
+        extraction_examples=[
+            {"text": "2 + 2 = 4 with steps", "label": "positive"},
+            {"text": "2 + 2 = 4", "label": "negative"},
+        ],
+        test_cases=[
+            {"text": "What is 7 + 5?", "label": "requires_reasoning"},
+        ],
+        evaluation_criteria=[
+            {
+                "name": "contains_steps",
+                "description": "The response includes intermediate arithmetic steps.",
+            }
+        ],
+        metadata={"owner": "tests"},
+    )
+    assert spec.get_extraction_texts(label="positive") == ["2 + 2 = 4 with steps"]
+    assert spec.get_test_texts() == ["What is 7 + 5?"]
+    assert spec.metadata == {"owner": "tests"}
+
+
+def test_feature_spec_requires_test_cases():
+    with pytest.raises(ValueError, match="test_cases"):
+        steering.FeatureSpec(
+            name="missing_tests",
+            model_name="gpt2",
+            category="reasoning_strategy",
+            summary="Invalid feature spec.",
+            extraction_examples=[{"text": "x", "label": "positive"}],
+            test_cases=[],
+            evaluation_criteria=[
+                {"name": "criterion", "description": "Something to check."},
+            ],
+        )
+
+
+def test_get_standard_feature_catalog_returns_typed_catalog():
+    catalog = steering.get_standard_feature_catalog()
+    assert steering.STANDARD_FEATURE_SPECS_PATH.is_file()
+    assert catalog.model_name == "gpt2"
+    assert "reasoning_strategy" in catalog.list_categories()
+    feature = catalog.get_feature("chain_of_thought")
+    assert feature.model_name == "gpt2"
+    assert feature.get_extraction_texts(label="positive")
+    assert feature.evaluation_criteria[0].name
+
+
+def test_get_standard_feature_specs_filters_by_category():
+    feature_specs = steering.get_standard_feature_specs(category="context_engineering")
+    assert feature_specs
+    assert {feature.category for feature in feature_specs} == {"context_engineering"}
+
+
+def test_get_standard_feature_catalog_rejects_unknown_model():
+    with pytest.raises(ValueError, match="Unknown model_name"):
+        steering.get_standard_feature_catalog(model_name="unknown-model")

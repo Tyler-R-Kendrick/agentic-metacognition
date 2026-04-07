@@ -25,6 +25,7 @@ This repo includes an `activation_steering` Python package with reusable Hugging
 - injecting that vector with a forward hook during generation
 - comparing baseline, fixed steering, and an optional adaptive probe-based variant
 - loading a file-backed starter catalog of standard prompt, context, and reasoning activations for GPT-2
+- defining reusable feature-spec objects with extraction examples, test cases, and evaluation criteria
 
 ### Install
 
@@ -48,3 +49,7 @@ Use the notebook for the minimal example, or import the package from Python appl
 ### Standard activation catalog
 
 The package includes a persistent JSON catalog of starter activations for a single model (`gpt2`). Load it with `activation_steering.load_standard_activation_catalog()` or get the activation rows directly with `activation_steering.get_standard_activations()`.
+
+### Feature specification API
+
+The package also includes reusable Python modules for defining features to extract. Use `FeatureSpec`, `FeatureExample`, and `EvaluationCriterion` directly in Python, or load starter file-backed specs with `activation_steering.get_standard_feature_catalog()` / `activation_steering.get_standard_feature_specs()`.
