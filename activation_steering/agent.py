@@ -122,7 +122,7 @@ class ActivationTrace:
     def __post_init__(self) -> None:
         self.model_name = _require_text(self.model_name, "model_name")
         self.prompt = _require_text(self.prompt, "prompt")
-        self.output_text = "" if self.output_text is None else str(self.output_text)
+        self.output_text = str(self.output_text or "")
         self.observed_feature_ids = [str(feature_id) for feature_id in self.observed_feature_ids]
         self.metadata = _coerce_metadata(self.metadata)
 

@@ -492,10 +492,7 @@ class Neo4jGraphStore:
                         "input_example": str(getattr(feature, "input_example", "")),
                         "output_example": str(getattr(feature, "output_example", "")),
                         "observation_count": int(getattr(feature, "observation_count", 1)),
-                        "metadata_json": json.dumps(
-                            dict(getattr(feature, "metadata", {}) or {}),
-                            sort_keys=True,
-                        ),
+                        "metadata_json": json.dumps(getattr(feature, "metadata", {}), sort_keys=True),
                     }
                     for feature in observed_features
                 ],
