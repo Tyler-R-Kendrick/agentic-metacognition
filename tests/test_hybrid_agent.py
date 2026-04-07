@@ -44,6 +44,30 @@ def test_load_steering_controllers_reads_persistent_vectors(persistent_vectors_p
     assert chain_of_thought.decay == pytest.approx(0.8)
 
 
+def test_load_steering_controllers_coerces_integral_max_steps(tmp_path):
+    payload_path = tmp_path / "controllers.json"
+    payload_path.write_text(
+        """
+        {
+          "controllers": [
+            {
+              "controller_id": "retrieval_augmented_context_v1",
+              "feature_name": "retrieval_augmented_context",
+              "layer_idx": 1,
+              "vector": [1.0, 0.0],
+              "max_steps": "2"
+            }
+          ]
+        }
+        """.strip(),
+        encoding="utf-8",
+    )
+
+    controllers = steering.load_steering_controllers(payload_path)
+
+    assert controllers[0].max_steps == 2
+
+
 def test_steered_executor_collects_trace_and_runs_selected_controller(
     model, tokenizer, persistent_vectors_path
 ):
@@ -82,6 +106,36 @@ def test_steered_executor_collects_trace_and_runs_selected_controller(
     assert {
         score.feature_id for score in result.activation_trace.top_feature_scores
     }.issubset({controller.controller_id for controller in controllers})
+
+
+def test_steered_executor_filters_trace_to_selected_controller_layer(model, tokenizer):
+    layer_zero = steering.SteeringController(
+        controller_id="layer_zero",
+        feature_name="layer_zero",
+        layer_idx=0,
+        vector=torch.ones(model.config.n_embd),
+    )
+    layer_one = steering.SteeringController(
+        controller_id="layer_one",
+        feature_name="layer_one",
+        layer_idx=1,
+        vector=torch.ones(model.config.n_embd),
+    )
+    executor = steering.SteeredExecutor(model=model, tokenizer=tokenizer, model_name="gpt2")
+    plan = steering.PlannerDecision(task_type="qa")
+
+    result = executor.execute(
+        task="Question: What is the capital of France?\nAnswer:",
+        plan=plan,
+        context=[],
+        controller=layer_one,
+        controllers=[layer_zero, layer_one],
+        max_new_tokens=2,
+    )
+
+    assert result.activation_trace is not None
+    assert result.activation_trace.layer_idx == 1
+    assert [score.feature_id for score in result.activation_trace.top_feature_scores] == ["layer_one"]
 
 
 def test_in_memory_steering_memory_prefers_most_successful_controller_for_task_type():
@@ -223,3 +277,4 @@ def test_hybrid_meta_cognition_agent_falls_back_and_records_memory():
     ]
     assert executor.calls == ["retrieval_augmented_context_v1", None]
     assert len(memory.run_history) == 1
+    assert memory.controller_success_rate("qa", "retrieval_augmented_context_v1") == pytest.approx(0.0)

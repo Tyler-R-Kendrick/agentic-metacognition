@@ -234,10 +234,11 @@ class DecayingActivationSteerer(ActivationSteerer):
         self._step = 0
 
     def get_scale(self, hidden: torch.Tensor) -> float:
-        if self.max_steps is not None and self._step >= self.max_steps:
-            return 0.0
-        scale = self.alpha * (self.decay**self._step)
         is_prefill_pass = hidden.dim() > 1 and hidden.shape[1] > 1
+        effective_step = 0 if is_prefill_pass else self._step
+        if self.max_steps is not None and effective_step >= self.max_steps:
+            return 0.0
+        scale = self.alpha * (self.decay**effective_step)
         if not is_prefill_pass:
             self._step += 1
         return scale

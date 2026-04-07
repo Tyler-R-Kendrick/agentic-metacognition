@@ -24,6 +24,27 @@ def _coerce_metadata(metadata: Mapping[str, Any] | None) -> dict[str, Any]:
     return dict(metadata or {})
 
 
+def _coerce_optional_non_negative_int(value: Any, field_name: str) -> int | None:
+    if value is None:
+        return None
+    # Reject bool explicitly so True/False do not silently become 1/0 for schedules.
+    if isinstance(value, bool):
+        raise ValueError(f"{field_name} must be a non-negative integer when provided.")
+    if isinstance(value, int):
+        coerced = value
+    else:
+        try:
+            numeric_value = float(value)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"{field_name} must be a non-negative integer when provided.") from exc
+        if not numeric_value.is_integer():
+            raise ValueError(f"{field_name} must be a non-negative integer when provided.")
+        coerced = int(numeric_value)
+    if coerced < 0:
+        raise ValueError(f"{field_name} must be a non-negative integer when provided.")
+    return coerced
+
+
 @dataclass
 class PlannerDecision:
     """Planner output for routing one task through the hybrid agent."""
@@ -62,6 +83,7 @@ class SteeringController:
         if self.layer_idx < 0:
             raise ValueError("layer_idx must be non-negative.")
         self.vector = torch.as_tensor(self.vector, dtype=torch.float32).detach().cpu()
+        self.max_steps = _coerce_optional_non_negative_int(self.max_steps, "max_steps")
         normalized_task_types = []
         for task_type in self.task_types:
             normalized_task_types.append(_require_text(task_type, "task_types"))
@@ -210,21 +232,31 @@ def collect_controller_trace(
     device: str | torch.device,
     model_name: str,
     top_k: int = 3,
+    layer_idx: int | None = None,
 ) -> ActivationTrace | None:
     """Score the prompt hidden state against persisted steering vectors."""
     if not controllers:
         return None
-    layer_indices = {controller.layer_idx for controller in controllers}
-    if len(layer_indices) != 1:
-        raise ValueError(
-            "collect_controller_trace() requires all controllers to target the same layer; "
-            f"received layers: {sorted(layer_indices)}"
-        )
-    layer_idx = controllers[0].layer_idx
-    hidden = get_last_token_hidden(prompt, layer_idx, model, tokenizer, device)
+    if layer_idx is None:
+        layer_indices = {controller.layer_idx for controller in controllers}
+        if len(layer_indices) != 1:
+            raise ValueError(
+                "collect_controller_trace() requires all controllers to target the same layer; "
+                f"received layers: {sorted(layer_indices)}"
+            )
+        trace_controllers = list(controllers)
+        resolved_layer_idx = controllers[0].layer_idx
+    else:
+        resolved_layer_idx = layer_idx
+        trace_controllers = [
+            controller for controller in controllers if controller.layer_idx == resolved_layer_idx
+        ]
+        if not trace_controllers:
+            return None
+    hidden = get_last_token_hidden(prompt, resolved_layer_idx, model, tokenizer, device)
     scores = []
     skipped_controllers = []
-    for controller in controllers:
+    for controller in trace_controllers:
         if controller.vector.shape != hidden.shape:
             skipped_controllers.append(
                 {
@@ -243,7 +275,7 @@ def collect_controller_trace(
     return ActivationTrace(
         model_name=model_name,
         controller_id=None,
-        layer_idx=layer_idx,
+        layer_idx=resolved_layer_idx,
         prompt=prompt,
         top_feature_scores=top_scores,
         prompt_hidden_norm=float(hidden.norm().item()),
@@ -278,19 +310,28 @@ class SteeredExecutor:
         max_new_tokens: int = DEFAULT_MAX_NEW_TOKENS,
     ) -> ExecutorResult:
         prompt = build_executor_prompt(task, context, plan)
-        activation_trace = collect_controller_trace(
-            prompt=prompt,
-            controllers=list(controllers),
-            model=self.model,
-            tokenizer=self.tokenizer,
-            device=self.device,
-            model_name=self.model_name,
-            top_k=self.top_k_trace_features,
-        )
+        trace_layer_idx = controller.layer_idx if controller is not None else None
+        activation_trace = None
+        controller_list = list(controllers)
+        if controller_list:
+            if trace_layer_idx is None:
+                controller_layers = {candidate.layer_idx for candidate in controller_list}
+                if len(controller_layers) == 1:
+                    trace_layer_idx = next(iter(controller_layers))
+            if trace_layer_idx is not None:
+                activation_trace = collect_controller_trace(
+                    prompt=prompt,
+                    controllers=controller_list,
+                    model=self.model,
+                    tokenizer=self.tokenizer,
+                    device=self.device,
+                    model_name=self.model_name,
+                    top_k=self.top_k_trace_features,
+                    layer_idx=trace_layer_idx,
+                )
         if activation_trace is not None:
             if controller is not None:
                 activation_trace.controller_id = controller.controller_id
-                activation_trace.layer_idx = controller.layer_idx
             else:
                 activation_trace.controller_id = None
 
