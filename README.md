@@ -37,7 +37,14 @@ python -m pip install -r requirements.txt
 ### Dev container
 
 This repo includes a VS Code dev container config that preinstalls the Python and
-Jupyter extensions and installs the repo requirements plus `ipykernel`.
+Jupyter extensions, installs the GitHub CLI plus the `gh-aw` extension, and installs the repo requirements plus `ipykernel`.
+
+The repo also includes a Copilot setup workflow at `.github/workflows/copilot-setup-steps.yml` so the GitHub Copilot coding agent gets the same `gh-aw` tooling in its cloud environment.
+
+
+### Agentic workflow automation
+
+A daily GitHub Agentic Workflow source lives at `.github/workflows/daily-gh-aw-training.md`. It researches the repository's training artifacts for missing feature-extraction opportunities, then opens one delegated Copilot issue for the best candidate. The repository also includes a `gh-aw` Copilot skill under `.github/skills/gh-aw/` with command reference docs for the CLI surface.
 
 ### Notebook example
 

@@ -9,5 +9,8 @@
       ]
     }
   },
-  "postCreateCommand": "python -m pip install -r requirements.txt && python -m pip install ipykernel"
+  "postCreateCommand": "python -m pip install -r requirements.txt && python -m pip install ipykernel && curl -sL https://raw.githubusercontent.com/github/gh-aw/main/install-gh-aw.sh | bash",
+  "features": {
+    "ghcr.io/devcontainers/features/github-cli:1": {}
+  }
 }
