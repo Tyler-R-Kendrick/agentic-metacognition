@@ -157,7 +157,7 @@ def test_hybrid_agent_records_graph_state_for_path_rag_fallback():
     assert run.fallback_used is True
     assert run.context[0].startswith("CURRENT_INTENT")
     assert run.metadata["graph_run_id"] == "run-1"
-    assert isinstance(run.metadata["path_context"], steering.PathRAGContext)
+    assert isinstance(run.path_context, steering.PathRAGContext)
     assert len(graph_store.states) == 3
     assert graph_store.corrections[0][1]["action"] == "fallback_to_unsteered_execution"
     assert graph_store.outcomes[0][1]["verdict"].passed is True

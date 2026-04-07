@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
 from typing import Any, Iterable, Mapping, Sequence
 from uuid import uuid4
@@ -14,6 +15,16 @@ def _require_text(value: Any, field_name: str) -> str:
 
 def _coerce_metadata(metadata: Mapping[str, Any] | None) -> dict[str, Any]:
     return dict(metadata or {})
+
+
+def _validate_similarity_function(similarity_function: str) -> str:
+    normalized = _require_text(similarity_function, "similarity_function").lower()
+    allowed = {"cosine", "euclidean"}
+    if normalized not in allowed:
+        raise ValueError(
+            "similarity_function must be one of: " + ", ".join(sorted(allowed)) + "."
+        )
+    return normalized
 
 
 @dataclass(frozen=True)
@@ -295,6 +306,7 @@ class Neo4jGraphStore:
         embedding_dimensions: Mapping[str, int] | None = None,
         similarity_function: str = "cosine",
     ) -> None:
+        similarity_function = _validate_similarity_function(similarity_function)
         for label, property_name in self._UNIQUE_CONSTRAINTS.items():
             self._run(
                 f"CREATE CONSTRAINT {label.lower()}_{property_name}_unique IF NOT EXISTS "
@@ -314,7 +326,7 @@ class Neo4jGraphStore:
                 f"FOR (n:{label}) ON (n.{property_name}) "
                 "OPTIONS {indexConfig: {"
                 f"`vector.dimensions`: {int(dimensions)}, "
-                f"`vector.similarity_function`: '{_require_text(similarity_function, 'similarity_function')}'"
+                f"`vector.similarity_function`: '{similarity_function}'"
                 "}}"
             )
 
@@ -489,7 +501,7 @@ class Neo4jGraphStore:
                 SET s.metadata_json = $metadata_json
                 """,
                 state_id=state_id,
-                metadata_json=str(payload),
+                metadata_json=json.dumps(payload, sort_keys=True),
             )
         return state_id
 

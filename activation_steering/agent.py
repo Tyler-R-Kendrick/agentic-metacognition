@@ -158,6 +158,7 @@ class HybridAgentRun:
     verdict: VerifierResult
     selected_controller_id: str | None
     fallback_used: bool = False
+    path_context: Any | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
@@ -652,10 +653,8 @@ class HybridMetaCognitionAgent:
             verdict=verdict,
             selected_controller_id=selected_controller.controller_id if selected_controller else None,
             fallback_used=fallback_used,
-            metadata={
-                "graph_run_id": getattr(graph_run, "run_id", None),
-                "path_context": path_context,
-            },
+            path_context=path_context,
+            metadata={"graph_run_id": getattr(graph_run, "run_id", None)},
         )
         self.memory.record_run(run)
         if graph_run is not None:
