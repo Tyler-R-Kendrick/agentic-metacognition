@@ -10,6 +10,8 @@ import torch
 from .models import DEFAULT_MAX_NEW_TOKENS, get_last_token_hidden, generate
 from .steering import generate_with_decaying_steering, generate_with_steering
 
+UNKNOWN_CONTROLLER_SORT_VALUE = float("-inf")
+
 
 def _require_text(value: str, field_name: str) -> str:
     normalized = str(value).strip()
@@ -58,7 +60,7 @@ class SteeringController:
         self.controller_id = _require_text(self.controller_id, "controller_id")
         self.feature_name = _require_text(self.feature_name, "feature_name")
         if self.layer_idx < 0:
-            raise ValueError("layer_idx must be greater than or equal to zero.")
+            raise ValueError("layer_idx must be non-negative.")
         self.vector = torch.as_tensor(self.vector, dtype=torch.float32).detach().cpu()
         normalized_task_types = []
         for task_type in self.task_types:
@@ -68,7 +70,7 @@ class SteeringController:
 
     def scale_at_step(self, step: int) -> float:
         if step < 0:
-            raise ValueError("step must be greater than or equal to zero.")
+            raise ValueError("step must be non-negative.")
         if self.max_steps is not None and step >= self.max_steps:
             return 0.0
         return float(self.alpha) * (float(self.decay) ** step)
@@ -161,8 +163,14 @@ def load_steering_controllers(
     task_types_by_controller = task_types_by_controller or {}
     controllers = []
     for entry in _coerce_controller_payloads(payload):
-        controller_id = str(entry.get("controller_id") or entry.get("name"))
-        feature_name = str(entry.get("feature_name") or entry.get("name"))
+        controller_id_value = entry.get("controller_id", entry.get("name"))
+        feature_name_value = entry.get("feature_name", entry.get("name"))
+        if controller_id_value is None or feature_name_value is None:
+            raise ValueError(
+                "Each persisted controller entry must include 'controller_id' or 'name'."
+            )
+        controller_id = str(controller_id_value)
+        feature_name = str(feature_name_value)
         task_types = tuple(task_types_by_controller.get(controller_id, ()))
         controllers.append(
             SteeringController(
@@ -209,14 +217,28 @@ def collect_controller_trace(
     layer_idx = controllers[0].layer_idx
     hidden = get_last_token_hidden(prompt, layer_idx, model, tokenizer, device)
     scores = []
+    skipped_controllers = []
     for controller in controllers:
-        if controller.layer_idx != layer_idx or controller.vector.shape != hidden.shape:
+        if controller.layer_idx != layer_idx:
+            skipped_controllers.append(
+                {"controller_id": controller.controller_id, "reason": "layer_mismatch"}
+            )
+            continue
+        if controller.vector.shape != hidden.shape:
+            skipped_controllers.append(
+                {
+                    "controller_id": controller.controller_id,
+                    "reason": "shape_mismatch",
+                    "controller_shape": tuple(controller.vector.shape),
+                    "hidden_shape": tuple(hidden.shape),
+                }
+            )
             continue
         score = float(torch.dot(hidden, controller.vector).item())
         scores.append(SteeringFeatureScore(feature_id=controller.controller_id, score=score))
     if not scores:
         return None
-    top_scores = sorted(scores, key=lambda item: abs(item.score), reverse=True)[: max(top_k, 1)]
+    top_scores = sorted(scores, key=lambda item: abs(item.score), reverse=True)[:top_k]
     return ActivationTrace(
         model_name=model_name,
         controller_id=None,
@@ -224,6 +246,7 @@ def collect_controller_trace(
         prompt=prompt,
         top_feature_scores=top_scores,
         prompt_hidden_norm=float(hidden.norm().item()),
+        metadata={"skipped_controllers": skipped_controllers},
     )
 
 
@@ -264,8 +287,11 @@ class SteeredExecutor:
             top_k=self.top_k_trace_features,
         )
         if activation_trace is not None:
-            activation_trace.controller_id = controller.controller_id if controller else None
-            activation_trace.layer_idx = controller.layer_idx if controller else activation_trace.layer_idx
+            if controller is not None:
+                activation_trace.controller_id = controller.controller_id
+                activation_trace.layer_idx = controller.layer_idx
+            else:
+                activation_trace.controller_id = None
 
         if controller is None:
             output_text = generate(
@@ -342,7 +368,7 @@ class InMemorySteeringMemory:
 
     def controller_success_rate(self, task_type: str, controller_id: str) -> float | None:
         stats = self._stats.get((task_type, controller_id))
-        if not stats or stats["total"] == 0:
+        if not stats:
             return None
         return stats["success"] / stats["total"]
 
@@ -364,7 +390,10 @@ class InMemorySteeringMemory:
 
         def sort_key(controller: SteeringController) -> tuple[float, str]:
             rate = self.controller_success_rate(task_type, controller.controller_id)
-            return (rate if rate is not None else -1.0, controller.controller_id)
+            return (
+                rate if rate is not None else UNKNOWN_CONTROLLER_SORT_VALUE,
+                controller.controller_id,
+            )
 
         return max(candidates, key=sort_key)
 

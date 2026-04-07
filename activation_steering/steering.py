@@ -235,7 +235,6 @@ class DecayingActivationSteerer(ActivationSteerer):
 
     def get_scale(self, hidden: torch.Tensor) -> float:
         if self.max_steps is not None and self._step >= self.max_steps:
-            self._step += 1
             return 0.0
         scale = self.alpha * (self.decay**self._step)
         self._step += 1
