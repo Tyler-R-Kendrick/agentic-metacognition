@@ -12,6 +12,13 @@ from .models import (
 )
 
 
+def _validate_example_sets(positive_examples: list[str], negative_examples: list[str]) -> None:
+    if not positive_examples:
+        raise ValueError("positive_examples must contain at least one example.")
+    if not negative_examples:
+        raise ValueError("negative_examples must contain at least one example.")
+
+
 def build_mean_difference_vector(
     positive_examples: list[str],
     negative_examples: list[str],
@@ -21,6 +28,7 @@ def build_mean_difference_vector(
     device: str | torch.device,
 ):
     """Build a normalized mean-difference steering vector."""
+    _validate_example_sets(positive_examples, negative_examples)
     pos = collect_last_token_hiddens(positive_examples, layer_idx, model, tokenizer, device)
     neg = collect_last_token_hiddens(negative_examples, layer_idx, model, tokenizer, device)
     vec = pos.mean(dim=0) - neg.mean(dim=0)
@@ -42,6 +50,7 @@ class ActivationSteerer:
         self.model = model
         self.layer_idx = layer_idx
         self.vector = torch.as_tensor(vector, dtype=torch.float32).detach().cpu()
+        self._vector_cache: dict[tuple[torch.device, torch.dtype], torch.Tensor] = {}
         self.alpha = alpha
         self.hook_handle = None
 
@@ -60,9 +69,15 @@ class ActivationSteerer:
     def get_scale(self, hidden: torch.Tensor) -> float:
         return self.alpha
 
+    def get_vector(self, hidden: torch.Tensor) -> torch.Tensor:
+        key = (hidden.device, hidden.dtype)
+        if key not in self._vector_cache:
+            self._vector_cache[key] = self.vector.to(hidden.device, dtype=hidden.dtype)
+        return self._vector_cache[key]
+
     def apply_steering(self, hidden: torch.Tensor) -> torch.Tensor:
         scale = self.get_scale(hidden)
-        correction = (scale * self.vector).view(1, 1, -1).to(hidden.device, dtype=hidden.dtype)
+        correction = (scale * self.get_vector(hidden)).view(1, 1, -1)
         return hidden + correction
 
     def _hook_fn(self, module, inputs, output):
@@ -105,6 +120,7 @@ def train_probe(
     random_state: int = 42,
 ):
     """Train a tiny logistic-regression probe and return its normalized vector."""
+    _validate_example_sets(positive_examples, negative_examples)
     pos = collect_last_token_hiddens(positive_examples, layer_idx, model, tokenizer, device)
     neg = collect_last_token_hiddens(negative_examples, layer_idx, model, tokenizer, device)
     X = torch.cat([pos, neg], dim=0).numpy()
@@ -141,14 +157,28 @@ class AdaptiveActivationSteerer:
         self.probe = probe
         self.probe_weight = torch.as_tensor(probe.coef_[0], dtype=torch.float32).detach()
         self.probe_bias = torch.as_tensor(float(probe.intercept_[0]), dtype=torch.float32).detach()
+        self._vector_cache: dict[tuple[torch.device, torch.dtype], torch.Tensor] = {}
+        self._probe_weight_cache: dict[tuple[torch.device, torch.dtype], torch.Tensor] = {}
+        self._probe_bias_cache: dict[tuple[torch.device, torch.dtype], torch.Tensor] = {}
         self.alpha = alpha
         self.beta = beta
         self.hook_handle = None
 
+    def _get_cached_tensor(
+        self,
+        tensor: torch.Tensor,
+        cache: dict[tuple[torch.device, torch.dtype], torch.Tensor],
+        hidden: torch.Tensor,
+    ) -> torch.Tensor:
+        key = (hidden.device, hidden.dtype)
+        if key not in cache:
+            cache[key] = tensor.to(hidden.device, dtype=hidden.dtype)
+        return cache[key]
+
     def _get_scale(self, hidden: torch.Tensor) -> float:
         last_hidden = hidden[0, -1, :].detach()
-        probe_weight = self.probe_weight.to(device=last_hidden.device, dtype=last_hidden.dtype)
-        probe_bias = self.probe_bias.to(device=last_hidden.device, dtype=last_hidden.dtype)
+        probe_weight = self._get_cached_tensor(self.probe_weight, self._probe_weight_cache, last_hidden)
+        probe_bias = self._get_cached_tensor(self.probe_bias, self._probe_bias_cache, last_hidden)
         logit = torch.dot(last_hidden, probe_weight) + probe_bias
         p_positive = torch.sigmoid(logit)
         scale = self.alpha * (1.0 - float(p_positive) + self.beta)
@@ -157,7 +187,8 @@ class AdaptiveActivationSteerer:
     def _hook_fn(self, module, inputs, output):
         hidden, rest = ActivationSteerer._split_output(output)
         scale = self._get_scale(hidden)
-        correction = (scale * self.vector).view(1, 1, -1).to(hidden.device, dtype=hidden.dtype)
+        vector = self._get_cached_tensor(self.vector, self._vector_cache, hidden)
+        correction = (scale * vector).view(1, 1, -1)
         return ActivationSteerer._merge_output(hidden + correction, rest)
 
     def __enter__(self):

@@ -251,6 +251,30 @@ def test_build_mean_difference_vector_direction(model, tokenizer):
     assert torch.dot(pos_hidden.mean(dim=0), vec) > torch.dot(neg_hidden.mean(dim=0), vec)
 
 
+def test_build_mean_difference_vector_requires_positive_examples(model, tokenizer):
+    with pytest.raises(ValueError, match="positive_examples"):
+        steering.build_mean_difference_vector(
+            [],
+            NEGATIVE_TEXTS,
+            layer_idx=1,
+            model=model,
+            tokenizer=tokenizer,
+            device="cpu",
+        )
+
+
+def test_build_mean_difference_vector_requires_negative_examples(model, tokenizer):
+    with pytest.raises(ValueError, match="negative_examples"):
+        steering.build_mean_difference_vector(
+            POSITIVE_TEXTS,
+            [],
+            layer_idx=1,
+            model=model,
+            tokenizer=tokenizer,
+            device="cpu",
+        )
+
+
 def test_activation_steerer_modifies_real_model_logits(model, tokenizer):
     inputs = prompt_inputs(tokenizer)
     vector = build_vector(model, tokenizer)
@@ -326,6 +350,30 @@ def test_train_probe_returns_probe_and_unit_vector(model, tokenizer):
     proba = probe.predict_proba(sample.reshape(1, -1).numpy())
     assert proba.shape == (1, 2)
     assert np.isclose(proba.sum(), 1.0)
+
+
+def test_train_probe_requires_positive_examples(model, tokenizer):
+    with pytest.raises(ValueError, match="positive_examples"):
+        steering.train_probe(
+            [],
+            NEGATIVE_TEXTS,
+            layer_idx=1,
+            model=model,
+            tokenizer=tokenizer,
+            device="cpu",
+        )
+
+
+def test_train_probe_requires_negative_examples(model, tokenizer):
+    with pytest.raises(ValueError, match="negative_examples"):
+        steering.train_probe(
+            POSITIVE_TEXTS,
+            [],
+            layer_idx=1,
+            model=model,
+            tokenizer=tokenizer,
+            device="cpu",
+        )
 
 
 def test_adaptive_steerer_modifies_real_model_logits(model, tokenizer):

@@ -27,4 +27,4 @@ Open `notebooks/minimal_activation_steering.ipynb` to run the minimal end-to-end
 
 ### Use
 
-Use the notebook for the minimal example, or import the package from Python applications that want to build vectors, attach steering hooks, and run steered generation.
+Use the notebook for the minimal example, or import the package from Python applications that run from the repository root (or with `PYTHONPATH` pointed at the repo) to build vectors, attach steering hooks, and run steered generation.

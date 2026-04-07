@@ -134,5 +134,6 @@ def generate(
     }
     if do_sample:
         generation_kwargs["temperature"] = 0.7
-    output_ids = model.generate(**inputs, **generation_kwargs)
+    with torch.inference_mode():
+        output_ids = model.generate(**inputs, **generation_kwargs)
     return tokenizer.decode(output_ids[0], skip_special_tokens=True)
