@@ -16,6 +16,17 @@ This repo includes `activation_steering.py`, a small Hugging Face–based exampl
 python -m pip install -r requirements.txt
 ```
 
+### Dev container
+
+This repo includes a VS Code dev container config that preinstalls the Python and
+Jupyter extensions and installs the repo requirements plus `ipykernel`.
+
+### Notebook example
+
+Open `notebooks/minimal_activation_steering.ipynb` to run a minimal notebook
+example that imports `activation_steering.py` and uses the existing steering
+helpers directly instead of re-implementing them in notebook cells.
+
 ### Run
 
 ```bash
