@@ -603,6 +603,7 @@ class HybridMetaCognitionAgent:
                     "record_drift_and_correction",
                     graph_run,
                     state_id=draft_state_id,
+                    step=2,
                     drift_kind="verifier_rejected_steered_draft",
                     score=max(0.0, 1.0 - float(verdict.confidence)),
                     description="Verifier rejected the steered draft, so the agent re-anchored with an unsteered fallback.",
