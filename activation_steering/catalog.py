@@ -52,5 +52,9 @@ def get_standard_activations(
         ) from exc
 
     if category is None:
-        return [dict(activation) for activation in activations]
-    return [dict(activation) for activation in activations if activation["category"] == category]
+        return [copy.deepcopy(activation) for activation in activations]
+    return [
+        copy.deepcopy(activation)
+        for activation in activations
+        if activation["category"] == category
+    ]
