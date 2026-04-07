@@ -15,6 +15,12 @@ from .steering import generate_with_decaying_steering, generate_with_steering
 
 UNKNOWN_CONTROLLER_SORT_VALUE = float("-inf")
 RUNTIME_ARTIFACT_FORMAT_VERSION = 1
+MIN_TRUNCATE_LENGTH = 1
+SVG_MIN_WIDTH = 960
+SVG_WIDTH_PER_NODE = 200
+SVG_MIN_HEIGHT = 720
+SVG_HEIGHT_PER_NODE = 120
+SCALE_EPSILON = 1e-10
 
 
 def _require_text(value: str, field_name: str) -> str:
@@ -444,6 +450,18 @@ class InMemorySteeringMemory:
 
         return max(candidates, key=sort_key)
 
+    def controller_stats(self) -> list[dict[str, Any]]:
+        return [
+            {
+                "task_type": task_type,
+                "controller_id": controller_id,
+                "success": values["success"],
+                "total": values["total"],
+                "success_rate": (values["success"] / values["total"]) if values["total"] else None,
+            }
+            for (task_type, controller_id), values in sorted(self._stats.items())
+        ]
+
     def record_run(self, run: HybridAgentRun) -> None:
         self.run_history.append(run)
         if run.draft.activation_trace is not None:
@@ -509,11 +527,11 @@ def _drift_score_from_verifier(verdict: VerifierResult) -> float:
     return max(0.0, 1.0 - float(verdict.confidence))
 
 
-def _truncate_text(text: Any, limit: int = 72) -> str:
-    normalized = " ".join(str(text).split())
+def _truncate_text(value: Any, limit: int = 72) -> str:
+    normalized = " ".join(str(value).split())
     if len(normalized) <= limit:
         return normalized
-    return normalized[: max(limit - 1, 1)].rstrip() + "…"
+    return normalized[: max(limit - 1, MIN_TRUNCATE_LENGTH)].rstrip() + "…"
 
 
 def _serialize_task_plan(task_plan: GraphTaskPlan) -> dict[str, Any]:
@@ -599,23 +617,7 @@ def _serialize_verdict(verdict: VerifierResult) -> dict[str, Any]:
 
 def _build_runtime_discoveries_payload(memory: InMemorySteeringMemory) -> dict[str, Any]:
     controllers = sorted(memory.list_controllers(), key=lambda item: item.controller_id)
-    activation_traces = [
-        _serialize_activation_trace(trace)
-        for trace in memory.activation_traces
-    ]
-    controller_stats = []
-    for (task_type, controller_id), stats in sorted(memory._stats.items()):
-        total = stats["total"]
-        success = stats["success"]
-        controller_stats.append(
-            {
-                "task_type": task_type,
-                "controller_id": controller_id,
-                "success": success,
-                "total": total,
-                "success_rate": (success / total) if total else None,
-            }
-        )
+    activation_traces = [_serialize_activation_trace(trace) for trace in memory.activation_traces]
     return {
         "format_version": RUNTIME_ARTIFACT_FORMAT_VERSION,
         "run_count": len(memory.run_history),
@@ -623,7 +625,7 @@ def _build_runtime_discoveries_payload(memory: InMemorySteeringMemory) -> dict[s
         "feature_vectors": [_serialize_feature_vector(controller) for controller in controllers],
         "activation_trace_count": len(activation_traces),
         "activation_traces": activation_traces,
-        "controller_stats": controller_stats,
+        "controller_stats": memory.controller_stats(),
     }
 
 
@@ -846,7 +848,7 @@ def _write_json_artifact(path: Path, payload: Mapping[str, Any]) -> Path:
 
 
 def _scale_coordinate(value: float, lower: float, upper: float, size: float, padding: float) -> float:
-    if upper - lower == 0:
+    if abs(upper - lower) < SCALE_EPSILON:
         return size / 2
     return padding + ((value - lower) / (upper - lower)) * (size - 2 * padding)
 
@@ -875,8 +877,8 @@ def _write_graph_visualization_artifact(path: Path, graph_payload: Mapping[str, 
     positions = nx.spring_layout(graph, seed=42)
     xs = [point[0] for point in positions.values()]
     ys = [point[1] for point in positions.values()]
-    width = max(960, 200 * max(len(graph.nodes), 1))
-    height = max(720, 120 * max(len(graph.nodes), 1))
+    width = max(SVG_MIN_WIDTH, SVG_WIDTH_PER_NODE * max(len(graph.nodes), 1))
+    height = max(SVG_MIN_HEIGHT, SVG_HEIGHT_PER_NODE * max(len(graph.nodes), 1))
     padding = 80.0
     scaled_positions = {
         node_id: (
@@ -981,6 +983,7 @@ class HybridMetaCognitionAgent:
     def persist_artifacts(self, artifact_dir: str | Path | None = None) -> dict[str, Path] | None:
         destination = self.artifact_dir if artifact_dir is None else Path(artifact_dir)
         close_graph_store = getattr(self.graph_store, "close", None)
+        persistence_error = None
         try:
             if destination is None:
                 return None
@@ -998,9 +1001,16 @@ class HybridMetaCognitionAgent:
                     graph_payload,
                 ),
             }
+        except Exception as exc:
+            persistence_error = exc
+            raise
         finally:
             if callable(close_graph_store):
-                close_graph_store()
+                try:
+                    close_graph_store()
+                except Exception:
+                    if persistence_error is None:
+                        raise
 
     def close(self) -> dict[str, Path] | None:
         return self.persist_artifacts()
