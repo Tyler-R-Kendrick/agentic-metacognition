@@ -223,7 +223,8 @@ class FeatureCatalog:
                     raise ValueError(
                         "All features in a FeatureCatalog must have the same model_name; "
                         f"expected {self.model_name!r}, got {feature.model_name!r} "
-                        f"for feature {feature.name!r}."
+                        f"for feature {feature.name!r}. Create separate FeatureCatalog "
+                        "instances for each model or update the feature's model_name."
                     )
                 normalized_features.append(feature)
             else:

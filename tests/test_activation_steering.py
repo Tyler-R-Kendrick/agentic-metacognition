@@ -457,6 +457,8 @@ def test_load_standard_activation_catalog_returns_valid_structure():
 
 def test_load_standard_activation_catalog_returns_deep_copy():
     catalog = steering.load_standard_activation_catalog()
+    assert "gpt2" in catalog["models"]
+    assert catalog["models"]["gpt2"]["activations"]
     catalog["models"]["gpt2"]["activations"][0]["name"] = "mutated"
 
     fresh_catalog = steering.load_standard_activation_catalog()
@@ -484,6 +486,7 @@ def test_get_standard_activations_returns_default_model_entries():
 
 def test_get_standard_activations_returns_copied_entries():
     activations = steering.get_standard_activations()
+    assert activations
     activations[0]["name"] = "mutated"
 
     fresh_activations = steering.get_standard_activations()
