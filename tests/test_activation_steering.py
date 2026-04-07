@@ -649,10 +649,14 @@ def test_feature_catalog_rejects_mismatched_feature_model_names():
 
 
 def test_get_standard_feature_models_uses_raw_payload(monkeypatch):
-    def fail_if_called():
+    def raise_if_feature_catalogs_loaded():
         raise AssertionError("load_standard_feature_catalogs should not be called")
 
-    monkeypatch.setattr(steering_features, "load_standard_feature_catalogs", fail_if_called)
+    monkeypatch.setattr(
+        steering_features,
+        "load_standard_feature_catalogs",
+        raise_if_feature_catalogs_loaded,
+    )
 
     assert steering.get_standard_feature_models() == ["gpt2"]
 
