@@ -1,28 +1,13 @@
 {
+  "format_version": 1,
   "feature_vector_count": 4,
   "feature_vectors": [
     {
-      "category": "prompt_engineering",
-      "evaluation_criteria": [
-        {
-          "description": "The prompt includes explicit worked examples before the target input.",
-          "metadata": {},
-          "name": "contains_demonstrations"
-        },
-        {
-          "description": "The provided demonstrations are structurally consistent with the requested task.",
-          "metadata": {},
-          "name": "examples_align_with_task"
-        }
-      ],
-      "layer_idx": 1,
-      "metadata": {},
-      "model_name": "gpt2",
       "name": "few_shot_prompting",
-      "negative_example_count": 1,
-      "positive_example_count": 1,
+      "model_name": "gpt2",
+      "category": "prompt_engineering",
       "summary": "Capture prompts that rely on a few exemplars before the target task.",
-      "test_case_count": 1,
+      "layer_idx": 1,
       "vector": [
         0.02697240561246872,
         -0.07552172988653183,
@@ -58,30 +43,30 @@
         0.20477165281772614
       ],
       "vector_norm": 1.0,
-      "vector_size": 32
-    },
-    {
-      "category": "context_engineering",
+      "vector_size": 32,
+      "positive_example_count": 1,
+      "negative_example_count": 1,
+      "test_case_count": 1,
       "evaluation_criteria": [
         {
-          "description": "The prompt includes externally provided reference material.",
-          "metadata": {},
-          "name": "includes_reference_context"
+          "name": "contains_demonstrations",
+          "description": "The prompt includes explicit worked examples before the target input.",
+          "metadata": {}
         },
         {
-          "description": "The injected context is directly useful for answering the task.",
-          "metadata": {},
-          "name": "context_relevant_to_question"
+          "name": "examples_align_with_task",
+          "description": "The provided demonstrations are structurally consistent with the requested task.",
+          "metadata": {}
         }
       ],
-      "layer_idx": 1,
-      "metadata": {},
-      "model_name": "gpt2",
+      "metadata": {}
+    },
+    {
       "name": "retrieval_augmented_context",
-      "negative_example_count": 1,
-      "positive_example_count": 1,
+      "model_name": "gpt2",
+      "category": "context_engineering",
       "summary": "Capture prompts that inject retrieved context alongside the task request.",
-      "test_case_count": 1,
+      "layer_idx": 1,
       "vector": [
         -0.11154575645923615,
         0.09482354670763016,
@@ -117,30 +102,30 @@
         -0.05868516117334366
       ],
       "vector_norm": 1.0,
-      "vector_size": 32
-    },
-    {
-      "category": "cognitive_architecture",
+      "vector_size": 32,
+      "positive_example_count": 1,
+      "negative_example_count": 1,
+      "test_case_count": 1,
       "evaluation_criteria": [
         {
-          "description": "The reasoning trace explicitly includes an action step.",
-          "metadata": {},
-          "name": "contains_action_step"
+          "name": "includes_reference_context",
+          "description": "The prompt includes externally provided reference material.",
+          "metadata": {}
         },
         {
-          "description": "The trace records an observation that follows the action.",
-          "metadata": {},
-          "name": "contains_observation_step"
+          "name": "context_relevant_to_question",
+          "description": "The injected context is directly useful for answering the task.",
+          "metadata": {}
         }
       ],
-      "layer_idx": 1,
-      "metadata": {},
-      "model_name": "gpt2",
+      "metadata": {}
+    },
+    {
       "name": "react",
-      "negative_example_count": 1,
-      "positive_example_count": 1,
+      "model_name": "gpt2",
+      "category": "cognitive_architecture",
       "summary": "Capture prompts or traces that alternate reasoning, action, and observation steps.",
-      "test_case_count": 1,
+      "layer_idx": 1,
       "vector": [
         0.009458119049668312,
         0.17192208766937256,
@@ -176,30 +161,30 @@
         0.1705223172903061
       ],
       "vector_norm": 1.0,
-      "vector_size": 32
-    },
-    {
-      "category": "reasoning_strategy",
+      "vector_size": 32,
+      "positive_example_count": 1,
+      "negative_example_count": 1,
+      "test_case_count": 1,
       "evaluation_criteria": [
         {
-          "description": "The answer includes intermediate reasoning, not just the final conclusion.",
-          "metadata": {},
-          "name": "contains_intermediate_steps"
+          "name": "contains_action_step",
+          "description": "The reasoning trace explicitly includes an action step.",
+          "metadata": {}
         },
         {
-          "description": "The intermediate steps are consistent with the final answer.",
-          "metadata": {},
-          "name": "reasoning_supports_answer"
+          "name": "contains_observation_step",
+          "description": "The trace records an observation that follows the action.",
+          "metadata": {}
         }
       ],
-      "layer_idx": 1,
-      "metadata": {},
-      "model_name": "gpt2",
+      "metadata": {}
+    },
+    {
       "name": "chain_of_thought",
-      "negative_example_count": 1,
-      "positive_example_count": 1,
+      "model_name": "gpt2",
+      "category": "reasoning_strategy",
       "summary": "Capture responses that show intermediate reasoning before the final answer.",
-      "test_case_count": 1,
+      "layer_idx": 1,
       "vector": [
         0.1532568782567978,
         -0.2451971471309662,
@@ -235,8 +220,23 @@
         -0.1327003836631775
       ],
       "vector_norm": 1.0,
-      "vector_size": 32
+      "vector_size": 32,
+      "positive_example_count": 1,
+      "negative_example_count": 1,
+      "test_case_count": 1,
+      "evaluation_criteria": [
+        {
+          "name": "contains_intermediate_steps",
+          "description": "The answer includes intermediate reasoning, not just the final conclusion.",
+          "metadata": {}
+        },
+        {
+          "name": "reasoning_supports_answer",
+          "description": "The intermediate steps are consistent with the final answer.",
+          "metadata": {}
+        }
+      ],
+      "metadata": {}
     }
-  ],
-  "format_version": 1
+  ]
 }

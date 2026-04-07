@@ -135,7 +135,7 @@ def save_discovered_feature_vectors(
         "feature_vectors": serialized_vectors,
     }
     destination.parent.mkdir(parents=True, exist_ok=True)
-    destination.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+    destination.write_text(json.dumps(payload, indent=2), encoding="utf-8")
     return destination
 
 

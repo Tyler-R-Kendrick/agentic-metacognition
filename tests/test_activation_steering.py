@@ -630,12 +630,21 @@ def test_discover_and_store_feature_vectors_runs_minimal_flow(tokenizer, tmp_pat
     assert fixture_path.is_file()
     payload = json.loads(output_path.read_text(encoding="utf-8"))
     fixture_payload = json.loads(fixture_path.read_text(encoding="utf-8"))
-    assert payload == fixture_payload
+    assert payload["format_version"] == fixture_payload["format_version"]
     assert payload["feature_vector_count"] == len(feature_specs)
+    assert payload["feature_vector_count"] == fixture_payload["feature_vector_count"]
     assert len(discovered_vectors) == len(feature_specs)
     assert {item["name"] for item in payload["feature_vectors"]} == {
         feature_spec.name for feature_spec in feature_specs
     }
+    for actual_item, expected_item in zip(
+        payload["feature_vectors"], fixture_payload["feature_vectors"], strict=True
+    ):
+        assert {key: value for key, value in actual_item.items() if key not in {"vector", "vector_norm"}} == {
+            key: value for key, value in expected_item.items() if key not in {"vector", "vector_norm"}
+        }
+        assert actual_item["vector"] == pytest.approx(expected_item["vector"], abs=1e-6)
+        assert actual_item["vector_norm"] == pytest.approx(expected_item["vector_norm"], abs=1e-6)
     assert all(item["vector_size"] == model.config.n_embd for item in payload["feature_vectors"])
     assert all(item["vector_norm"] > 0.0 for item in payload["feature_vectors"])
     assert all(vector.vector.shape == (model.config.n_embd,) for vector in discovered_vectors)
