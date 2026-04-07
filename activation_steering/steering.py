@@ -214,3 +214,53 @@ def generate_with_adaptive_steering(
     """Generate with adaptive probe-scaled steering applied at one layer."""
     with AdaptiveActivationSteerer(model, layer_idx, probe_vector, probe, alpha=alpha, beta=beta):
         return generate(prompt, model, tokenizer, device, max_new_tokens=max_new_tokens)
+
+
+class DecayingActivationSteerer(ActivationSteerer):
+    """Apply a steering vector with a token-step decay schedule."""
+
+    def __init__(
+        self,
+        model,
+        layer_idx: int,
+        vector: torch.Tensor,
+        alpha: float,
+        decay: float = 1.0,
+        max_steps: int | None = None,
+    ):
+        super().__init__(model=model, layer_idx=layer_idx, vector=vector, alpha=alpha)
+        self.decay = decay
+        self.max_steps = max_steps
+        self._step = 0
+
+    def get_scale(self, hidden: torch.Tensor) -> float:
+        if self.max_steps is not None and self._step >= self.max_steps:
+            self._step += 1
+            return 0.0
+        scale = self.alpha * (self.decay**self._step)
+        self._step += 1
+        return scale
+
+
+def generate_with_decaying_steering(
+    prompt: str,
+    model,
+    tokenizer,
+    layer_idx: int,
+    steering_vector: torch.Tensor,
+    device: str | torch.device,
+    alpha: float = 1.5,
+    decay: float = 0.9,
+    max_steps: int | None = None,
+    max_new_tokens: int = DEFAULT_MAX_NEW_TOKENS,
+) -> str:
+    """Generate with a steering vector that decays across generation steps."""
+    with DecayingActivationSteerer(
+        model,
+        layer_idx,
+        steering_vector,
+        alpha=alpha,
+        decay=decay,
+        max_steps=max_steps,
+    ):
+        return generate(prompt, model, tokenizer, device, max_new_tokens=max_new_tokens)
