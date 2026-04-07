@@ -444,7 +444,7 @@ def test_collect_evaluation_rows_returns_expected_shape(model, tokenizer):
     assert set(rows[0]) == {"prompt", "baseline", "fixed", "adaptive"}
 
 
-def test_load_standard_activation_catalog_reads_file_backed_data():
+def test_load_standard_activation_catalog_returns_valid_structure():
     catalog = steering.load_standard_activation_catalog()
     assert steering.STANDARD_ACTIVATIONS_PATH.is_file()
     assert catalog["default_model"] == "gpt2"

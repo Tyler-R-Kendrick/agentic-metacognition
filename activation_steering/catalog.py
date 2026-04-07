@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from functools import lru_cache
 from importlib.resources import files
+from typing import Any
 
 STANDARD_ACTIVATIONS_PATH = files("activation_steering").joinpath(
     "data", "standard_activations.json"
@@ -10,12 +11,12 @@ STANDARD_ACTIVATIONS_PATH = files("activation_steering").joinpath(
 
 
 @lru_cache(maxsize=1)
-def _load_standard_activation_catalog_payload() -> dict:
+def _load_standard_activation_catalog_payload() -> dict[str, Any]:
     with STANDARD_ACTIVATIONS_PATH.open(encoding="utf-8") as catalog_file:
         return json.load(catalog_file)
 
 
-def load_standard_activation_catalog() -> dict:
+def load_standard_activation_catalog() -> dict[str, Any]:
     """Load the file-backed standard activation catalog."""
     return _load_standard_activation_catalog_payload().copy()
 
