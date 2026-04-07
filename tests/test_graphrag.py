@@ -207,6 +207,80 @@ def test_neo4j_helpers_validate_driver_session_support():
         steering.Neo4jPathRAGRetriever(driver=None)
 
 
+def test_neo4j_graph_store_record_state_persists_observed_features():
+    class StubDriver:
+        def session(self, database):
+            raise AssertionError("session should not be used because _run is overridden")
+
+    class StubGraphStore(steering.Neo4jGraphStore):
+        def __init__(self):
+            super().__init__(driver=StubDriver())
+            self.calls = []
+
+        def _run(self, query: str, **parameters):
+            self.calls.append((query, parameters))
+            return []
+
+    graph_store = StubGraphStore()
+    run_handle = steering.GraphRunHandle(
+        run_id="run-1",
+        task_plan=steering.GraphTaskPlan.from_task_and_plan(
+            "What is the capital of France?",
+            steering.PlannerDecision(task_type="qa"),
+        ),
+    )
+
+    graph_store.record_state(
+        run_handle,
+        step=2,
+        text="Paris",
+        state_type="draft",
+        observed_features=[
+            steering.ObservedInteractionFeature(
+                feature_id="interaction::question__contextual__direct_response",
+                model_name="gpt2",
+                category="interaction_pattern",
+                summary="Observed question prompts with contextual context and direct response",
+                input_example="Context: France\nQuestion: What is the capital of France?",
+                output_example="Paris",
+            )
+        ],
+        metadata={"prompt": "Question: What is the capital of France?"},
+    )
+
+    feature_calls = [call for call in graph_store.calls if "InteractionFeature" in call[0]]
+
+    assert len(feature_calls) == 1
+    assert "model_name: feature.model_name, feature_id: feature.feature_id" in feature_calls[0][0]
+    assert feature_calls[0][1]["features"][0]["model_name"] == "gpt2"
+    assert feature_calls[0][1]["features"][0]["feature_id"].startswith("interaction::")
+
+
+def test_neo4j_graph_store_ensure_schema_supports_composite_unique_constraints():
+    class StubDriver:
+        def session(self, database):
+            raise AssertionError("session should not be used because _run is overridden")
+
+    class StubGraphStore(steering.Neo4jGraphStore):
+        def __init__(self):
+            super().__init__(driver=StubDriver())
+            self.calls = []
+
+        def _run(self, query: str, **parameters):
+            self.calls.append((query, parameters))
+            return []
+
+    graph_store = StubGraphStore()
+
+    graph_store.ensure_schema()
+
+    assert any(
+        "CREATE CONSTRAINT interactionfeature_model_name_feature_id_unique IF NOT EXISTS" in query
+        and "REQUIRE (n.model_name, n.feature_id) IS UNIQUE" in query
+        for query, _ in graph_store.calls
+    )
+
+
 def test_neo4j_path_rag_retriever_builds_context_from_candidate_ids():
     class StubDriver:
         def session(self, database):

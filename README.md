@@ -91,5 +91,6 @@ The hybrid-agent library now also includes additive graph-native helpers for Neo
 - `RetrievedPath` and `PathRAGContext` to keep evidence paths, analogous prior paths, and correction paths separated during retrieval
 - `Neo4jPathRAGRetriever` to combine Neo4j candidate retrieval with Cypher path expansion
 - `Neo4jGraphStore` to persist task/run/state/verifier/outcome nodes plus fallback-triggered drift corrections without replacing the existing in-memory steering memory
+- dynamic interaction-feature learning that watches prompt/output pairs per model and attaches observed feature nodes to recorded states
 
 This extension is intentionally minimal and keeps the existing planner/retriever/executor/verifier loop intact. It is designed to pair with Neo4j's official Python ecosystem, including the `neo4j` driver and `neo4j-graphrag` retrievers, instead of introducing a separate graph framework.
