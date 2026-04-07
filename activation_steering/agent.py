@@ -4,6 +4,7 @@ import json
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Iterable, Mapping, Protocol, Sequence
+from uuid import uuid4
 
 import torch
 
@@ -439,7 +440,8 @@ class InMemorySteeringMemory:
             ) from exc
 
     def observe_interaction(self, trace: ActivationTrace) -> list[ObservedInteractionFeature]:
-        trace_id = id(trace)
+        trace_id = str(trace.metadata.get("interaction_trace_id") or f"trace-{uuid4().hex}")
+        trace.metadata["interaction_trace_id"] = trace_id
         if trace_id not in self._observed_trace_ids:
             self.activation_traces.append(trace)
             self._observed_trace_ids.add(trace_id)
