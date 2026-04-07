@@ -129,7 +129,75 @@ class ObservedInteractionFeature:
 _WORD_PATTERN = re.compile(r"[a-z][a-z0-9_]{2,}")
 _LIST_LINE_PATTERN = re.compile(r"^\s*(?:[-*]|\d+[.)])\s+", re.MULTILINE)
 _KEYWORD_STOPWORDS = frozenset(
-    {"task", "type", "reasoning", "effort", "context", "question", "answer"}
+    {
+        "task",
+        "type",
+        "reasoning",
+        "effort",
+        "context",
+        "question",
+        "answer",
+        "the",
+        "and",
+        "for",
+        "with",
+        "that",
+        "this",
+        "from",
+        "into",
+        "about",
+        "what",
+        "when",
+        "where",
+        "which",
+        "who",
+        "why",
+        "how",
+        "are",
+        "was",
+        "were",
+        "is",
+        "can",
+        "could",
+        "would",
+        "should",
+        "have",
+        "has",
+        "had",
+        "not",
+        "but",
+        "you",
+        "your",
+        "its",
+        "our",
+        "their",
+        "his",
+        "her",
+        "they",
+        "them",
+        "then",
+        "than",
+        "there",
+        "here",
+        "also",
+        "all",
+        "any",
+        "one",
+        "two",
+        "three",
+        "a",
+        "an",
+        "of",
+        "in",
+        "on",
+        "to",
+        "it",
+        "as",
+        "at",
+        "by",
+        "or",
+        "if",
+    }
 )
 
 
@@ -158,7 +226,15 @@ def _classify_context_usage(prompt: str) -> str:
     prompt_lower = prompt.lower()
     if any(
         marker in prompt_lower
-        for marker in ("context:", "evidence:", "current_intent", "active_subgoal", "retrieved")
+        for marker in (
+            "context:",
+            "evidence:",
+            "current_intent",
+            "active_subgoal",
+            "retrieved:",
+            "retrieved_",
+            "retrieved ",
+        )
     ):
         return "contextual"
     return "direct"
@@ -170,7 +246,20 @@ def _classify_output_shape(output_text: str) -> str:
         return "list_response"
     if "```" in output_text:
         return "code_response"
-    if any(marker in output_lower for marker in ("because", "therefore", "first,", "second,")):
+    if any(
+        marker in output_lower
+        for marker in (
+            "because",
+            "therefore",
+            "thus",
+            "consequently",
+            "first,",
+            "second,",
+            "first ",
+            "second ",
+            "initially",
+        )
+    ):
         return "reasoned_response"
     return "direct_response"
 

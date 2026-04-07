@@ -218,9 +218,15 @@ def test_discover_interaction_features_learns_per_model_signatures():
     learned = steering.discover_interaction_features(traces)
 
     assert [feature.model_name for feature in learned] == ["model-a", "model-b"]
-    assert learned[0].feature_id == "interaction::question__contextual__list_response"
+    assert learned[0].feature_id.startswith("interaction::")
+    assert learned[0].metadata["prompt_shape"] == "question"
+    assert learned[0].metadata["context_usage"] == "contextual"
+    assert learned[0].metadata["output_shape"] == "list_response"
     assert learned[0].observation_count == 2
-    assert learned[1].feature_id == "interaction::explanation_request__direct__reasoned_response"
+    assert learned[1].feature_id.startswith("interaction::")
+    assert learned[1].metadata["prompt_shape"] == "explanation_request"
+    assert learned[1].metadata["context_usage"] == "direct"
+    assert learned[1].metadata["output_shape"] == "reasoned_response"
     assert learned[1].observation_count == 1
 
 

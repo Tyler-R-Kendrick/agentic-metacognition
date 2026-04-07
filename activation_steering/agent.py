@@ -453,10 +453,10 @@ class InMemorySteeringMemory:
                 stored_features.append(feature)
                 continue
             existing_feature.observation_count += feature.observation_count
-            existing_feature.input_example = feature.input_example
-            existing_feature.output_example = feature.output_example
             existing_feature.summary = feature.summary
             existing_feature.metadata.update(feature.metadata)
+            existing_feature.metadata["latest_input_example"] = feature.input_example
+            existing_feature.metadata["latest_output_example"] = feature.output_example
             stored_features.append(existing_feature)
         trace.observed_feature_ids = [feature.feature_id for feature in stored_features]
         if stored_features:
