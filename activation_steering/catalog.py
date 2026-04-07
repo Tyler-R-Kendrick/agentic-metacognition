@@ -30,7 +30,7 @@ def get_standard_activations(
     except KeyError as exc:
         available_models = ", ".join(sorted(catalog["models"]))
         raise ValueError(
-            f"Unknown model_name {selected_model!r}; expected one of: {available_models}."
+            f"Unknown model_name {selected_model!r}; choose from: {available_models}."
         ) from exc
 
     if category is None:
