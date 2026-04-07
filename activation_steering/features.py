@@ -149,9 +149,13 @@ class FeatureSpec:
         """Return extraction example texts, optionally filtered by label."""
         return self._filter_texts(self.extraction_examples, label=label)
 
-    def get_test_texts(self, label: str | None = None) -> list[str]:
-        """Return evaluation/test texts, optionally filtered by label."""
+    def get_test_case_texts(self, label: str | None = None) -> list[str]:
+        """Return evaluation/test-case texts, optionally filtered by label."""
         return self._filter_texts(self.test_cases, label=label)
+
+    def get_test_texts(self, label: str | None = None) -> list[str]:
+        """Backward-compatible alias for get_test_case_texts."""
+        return self.get_test_case_texts(label=label)
 
     @staticmethod
     def _filter_texts(
@@ -205,6 +209,7 @@ class FeatureCatalog:
     features: list[FeatureSpec]
     description: str = ""
     metadata: dict[str, Any] = field(default_factory=dict)
+    _feature_by_name: dict[str, FeatureSpec] = field(init=False, repr=False, default_factory=dict)
 
     def __post_init__(self) -> None:
         self.model_name = _require_text(self.model_name, "model_name")
@@ -215,11 +220,11 @@ class FeatureCatalog:
             for feature in self.features
         ]
         self.metadata = _coerce_metadata(self.metadata)
+        self._feature_by_name = {feature.name: feature for feature in self.features}
 
     def get_feature(self, feature_name: str) -> FeatureSpec:
-        for feature in self.features:
-            if feature.name == feature_name:
-                return feature
+        if feature_name in self._feature_by_name:
+            return self._feature_by_name[feature_name]
         available_features = ", ".join(sorted(feature.name for feature in self.features))
         raise ValueError(
             f"Unknown feature_name {feature_name!r}; choose from: {available_features}."
