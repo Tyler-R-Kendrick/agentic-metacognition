@@ -169,6 +169,7 @@ class RetrievedPath:
     path_kind: str
     path_text: str
     score: float = 0.0
+    redundancy_penalty: float = 0.0
     root_anchor: str | None = None
     supporting_node_ids: tuple[str, ...] = ()
     metadata: dict[str, Any] = field(default_factory=dict)
@@ -178,6 +179,7 @@ class RetrievedPath:
         object.__setattr__(self, "path_kind", _require_text(self.path_kind, "path_kind"))
         object.__setattr__(self, "path_text", _require_text(self.path_text, "path_text"))
         object.__setattr__(self, "score", float(self.score))
+        object.__setattr__(self, "redundancy_penalty", float(self.redundancy_penalty))
         object.__setattr__(
             self,
             "supporting_node_ids",
@@ -192,6 +194,7 @@ class RetrievedPath:
             path_kind=str(record.get("path_kind", "evidence")),
             path_text=str(record.get("path_text", "")),
             score=float(record.get("score", 0.0)),
+            redundancy_penalty=float(record.get("redundancy_penalty", 0.0)),
             root_anchor=record.get("root_anchor"),
             supporting_node_ids=tuple(record.get("supporting_node_ids") or ()),
             metadata=dict(record.get("metadata") or {}),
@@ -475,7 +478,7 @@ class Neo4jGraphStore:
                     "path_text": path.path_text,
                     "path_kind": path.path_kind,
                     "score": path.score,
-                    "redundancy_penalty": path.metadata.get("redundancy_penalty", 0.0),
+                    "redundancy_penalty": path.redundancy_penalty,
                 }
                 for path in all_paths
             ],
