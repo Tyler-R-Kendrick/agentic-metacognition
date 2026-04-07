@@ -24,7 +24,7 @@ Use this skill whenever work touches GitHub Agentic Workflows in `.github/workfl
 3. Keep the agent job read-only; use `safe-outputs:` for issue, PR, or comment writes.
 4. Prefer fuzzy schedules like `daily on weekdays` when the workflow is meant to run regularly.
 5. Ensure `.gitattributes` marks `.lock.yml` files as generated with `linguist-generated=true merge=ours`.
-6. If `gh aw` is missing, install it with `curl -sL https://raw.githubusercontent.com/github/gh-aw/main/install-gh-aw.sh | bash` and verify with `gh aw version`.
+6. If `gh aw` is missing, install it with a pinned release script such as `curl -fsSL https://raw.githubusercontent.com/github/gh-aw/v0.67.1/install-gh-aw.sh -o /tmp/install-gh-aw.sh && bash /tmp/install-gh-aw.sh v0.67.1 && rm -f /tmp/install-gh-aw.sh`, then verify with `gh aw version`.
 
 ## Recommended authoring loop
 
@@ -76,7 +76,7 @@ Use this skill whenever work touches GitHub Agentic Workflows in `.github/workfl
   "features": {
     "ghcr.io/devcontainers/features/github-cli:1": {}
   },
-  "postCreateCommand": "curl -sL https://raw.githubusercontent.com/github/gh-aw/main/install-gh-aw.sh | bash"
+  "postCreateCommand": "curl -fsSL https://raw.githubusercontent.com/github/gh-aw/v0.67.1/install-gh-aw.sh -o /tmp/install-gh-aw.sh && bash /tmp/install-gh-aw.sh v0.67.1 && rm -f /tmp/install-gh-aw.sh"
 }
 ```
 
@@ -84,5 +84,5 @@ Use this skill whenever work touches GitHub Agentic Workflows in `.github/workfl
 
 ```yaml
 - name: Install gh-aw extension
-  run: curl -sL https://raw.githubusercontent.com/github/gh-aw/main/install-gh-aw.sh | bash
+  run: curl -fsSL https://raw.githubusercontent.com/github/gh-aw/v0.67.1/install-gh-aw.sh -o /tmp/install-gh-aw.sh && bash /tmp/install-gh-aw.sh v0.67.1 && rm -f /tmp/install-gh-aw.sh
 ```

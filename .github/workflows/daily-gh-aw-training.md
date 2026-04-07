@@ -19,10 +19,12 @@ tools:
   bash:
     - "find activation_steering tests -type f"
     - "cat README.md"
+    - "cat activation_steering/models.py"
+    - "cat activation_steering/features.py"
+    - "cat activation_steering/discovery.py"
     - "cat activation_steering/data/*.json"
     - "cat tests/data/*.json"
     - "git log --oneline"
-    - "python *"
 safe-outputs:
   create-issue:
     title-prefix: "[daily-gh-aw-training] "

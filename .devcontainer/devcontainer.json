@@ -9,7 +9,7 @@
       ]
     }
   },
-  "postCreateCommand": "python -m pip install -r requirements.txt && python -m pip install ipykernel && curl -sL https://raw.githubusercontent.com/github/gh-aw/main/install-gh-aw.sh | bash",
+  "postCreateCommand": "python -m pip install -r requirements.txt && python -m pip install ipykernel && curl -fsSL https://raw.githubusercontent.com/github/gh-aw/v0.67.1/install-gh-aw.sh -o /tmp/install-gh-aw.sh && bash /tmp/install-gh-aw.sh v0.67.1 && rm -f /tmp/install-gh-aw.sh",
   "features": {
     "ghcr.io/devcontainers/features/github-cli:1": {}
   }
