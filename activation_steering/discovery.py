@@ -130,11 +130,12 @@ def save_discovered_feature_vectors(
         raise ValueError("feature_vectors must contain at least one discovered vector.")
 
     payload = {
+        "format_version": 1,
         "feature_vector_count": len(serialized_vectors),
         "feature_vectors": serialized_vectors,
     }
     destination.parent.mkdir(parents=True, exist_ok=True)
-    destination.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    destination.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
     return destination
 
 

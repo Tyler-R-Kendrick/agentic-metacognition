@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -610,8 +611,11 @@ def test_feature_catalog_rejects_duplicate_feature_names():
 
 def test_discover_and_store_feature_vectors_runs_minimal_flow(tokenizer, tmp_path):
     model = make_gpt2_model(tokenizer)
-    feature_specs = steering.get_standard_feature_specs()[:2]
+    feature_specs = steering.get_standard_feature_specs()
     output_path = tmp_path / "identified_feature_vectors.json"
+    fixture_path = (
+        Path(__file__).parent / "data" / "minimal_identified_feature_vectors.json"
+    )
 
     discovered_vectors = steering.discover_and_store_feature_vectors(
         feature_specs=feature_specs,
@@ -623,9 +627,12 @@ def test_discover_and_store_feature_vectors_runs_minimal_flow(tokenizer, tmp_pat
     )
 
     assert output_path.is_file()
+    assert fixture_path.is_file()
     payload = json.loads(output_path.read_text(encoding="utf-8"))
-    assert payload["feature_vector_count"] == 2
-    assert len(discovered_vectors) == 2
+    fixture_payload = json.loads(fixture_path.read_text(encoding="utf-8"))
+    assert payload == fixture_payload
+    assert payload["feature_vector_count"] == len(feature_specs)
+    assert len(discovered_vectors) == len(feature_specs)
     assert {item["name"] for item in payload["feature_vectors"]} == {
         feature_spec.name for feature_spec in feature_specs
     }

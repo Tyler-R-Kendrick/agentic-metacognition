@@ -61,3 +61,5 @@ The package also includes reusable Python modules for defining features to extra
 ### Feature discovery and storage
 
 Use `activation_steering.discover_feature_vectors(...)` to build one steering vector per feature spec from its labeled extraction examples, then persist the results with `activation_steering.save_discovered_feature_vectors(...)` or `activation_steering.discover_and_store_feature_vectors(...)`.
+
+The repository also keeps a checked-in minimal-example artifact in source control at `tests/data/minimal_identified_feature_vectors.json`, and the integration test regenerates that file's contents to ensure the stored vectors stay in sync with the discovery flow.
