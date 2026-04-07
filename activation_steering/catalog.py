@@ -14,6 +14,7 @@ class ActivationEntry(TypedDict):
 STANDARD_ACTIVATIONS_PATH = files("activation_steering").joinpath(
     "data", "standard_activations.json"
 )
+# Backward-compatible alias for callers that prefer a catalog-oriented name.
 STANDARD_ACTIVATION_CATALOG_PATH = STANDARD_ACTIVATIONS_PATH
 
 

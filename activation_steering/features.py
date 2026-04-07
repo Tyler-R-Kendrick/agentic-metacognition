@@ -9,6 +9,7 @@ from typing import Any, Mapping
 STANDARD_FEATURE_SPECS_PATH = files("activation_steering").joinpath(
     "data", "standard_feature_specs.json"
 )
+# Backward-compatible alias for callers that prefer a catalog-oriented name.
 STANDARD_FEATURE_CATALOG_PATH = STANDARD_FEATURE_SPECS_PATH
 
 
@@ -189,7 +190,7 @@ class FeatureSpec:
         resolved_model_name = model_name or data.get("model_name")
         if resolved_model_name is None or not str(resolved_model_name).strip():
             raise ValueError(
-                "FeatureSpec.from_dict requires model_name or data['model_name']."
+                'FeatureSpec.from_dict requires model_name parameter or data["model_name"] to be provided.'
             )
         return cls(
             name=str(data["name"]),
