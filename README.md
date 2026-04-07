@@ -24,6 +24,7 @@ This repo includes an `activation_steering` Python package with reusable Hugging
 - building a mean-difference steering vector
 - injecting that vector with a forward hook during generation
 - comparing baseline, fixed steering, and an optional adaptive probe-based variant
+- loading a file-backed starter catalog of standard prompt, context, and reasoning activations for GPT-2
 
 ### Install
 
@@ -43,3 +44,7 @@ Open `notebooks/minimal_activation_steering.ipynb` to run the minimal end-to-end
 ### Use
 
 Use the notebook for the minimal example, or import the package from Python applications that run from the repository root (or with `PYTHONPATH` pointed at the repo) to build vectors, attach steering hooks, and run steered generation.
+
+### Standard activation catalog
+
+The package includes a persistent JSON catalog of starter activations for a single model (`gpt2`). Load it with `activation_steering.load_standard_activation_catalog()` or get the activation rows directly with `activation_steering.get_standard_activations()`.

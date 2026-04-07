@@ -1,0 +1,65 @@
+{
+  "default_model": "gpt2",
+  "models": {
+    "gpt2": {
+      "description": "Standard starter activation catalog for a single GPT-2 style causal language model.",
+      "activations": [
+        {
+          "name": "zero_shot_prompting",
+          "category": "prompt_engineering",
+          "summary": "Ask for the task directly without worked examples."
+        },
+        {
+          "name": "few_shot_prompting",
+          "category": "prompt_engineering",
+          "summary": "Prime the model with a small number of input-output exemplars."
+        },
+        {
+          "name": "role_prompting",
+          "category": "prompt_engineering",
+          "summary": "Assign a stable role or persona before the task request."
+        },
+        {
+          "name": "retrieval_augmented_context",
+          "category": "context_engineering",
+          "summary": "Inject retrieved reference material into the model context window."
+        },
+        {
+          "name": "scratchpad_context",
+          "category": "context_engineering",
+          "summary": "Reserve context for intermediate notes, plans, or tool outputs."
+        },
+        {
+          "name": "instruction_hierarchy",
+          "category": "context_engineering",
+          "summary": "Separate system-level constraints from task-level context and examples."
+        },
+        {
+          "name": "react",
+          "category": "cognitive_architecture",
+          "summary": "Interleave reasoning traces with explicit actions and observations."
+        },
+        {
+          "name": "reflection",
+          "category": "cognitive_architecture",
+          "summary": "Evaluate draft reasoning and revise before finalizing an answer."
+        },
+        {
+          "name": "chain_of_thought",
+          "category": "reasoning_strategy",
+          "summary": "Encourage intermediate reasoning steps before the final answer."
+        },
+        {
+          "name": "tree_of_thought",
+          "category": "reasoning_strategy",
+          "summary": "Explore multiple candidate reasoning branches before choosing one."
+        },
+        {
+          "name": "self_consistency",
+          "category": "reasoning_strategy",
+          "summary": "Sample multiple reasoning paths and aggregate toward a stable answer."
+        }
+      ]
+    }
+  }
+}

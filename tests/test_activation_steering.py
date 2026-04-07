@@ -442,3 +442,33 @@ def test_collect_evaluation_rows_returns_expected_shape(model, tokenizer):
     )
     assert len(rows) == 2
     assert set(rows[0]) == {"prompt", "baseline", "fixed", "adaptive"}
+
+
+def test_load_standard_activation_catalog_reads_file_backed_data():
+    catalog = steering.load_standard_activation_catalog()
+    assert steering.STANDARD_ACTIVATIONS_PATH.is_file()
+    assert catalog["default_model"] == "gpt2"
+    assert "gpt2" in catalog["models"]
+
+
+def test_get_standard_activations_returns_default_model_entries():
+    activations = steering.get_standard_activations()
+    categories = {activation["category"] for activation in activations}
+    assert len(activations) >= 4
+    assert {
+        "prompt_engineering",
+        "context_engineering",
+        "cognitive_architecture",
+        "reasoning_strategy",
+    }.issubset(categories)
+
+
+def test_get_standard_activations_filters_by_category():
+    activations = steering.get_standard_activations(category="prompt_engineering")
+    assert activations
+    assert {activation["category"] for activation in activations} == {"prompt_engineering"}
+
+
+def test_get_standard_activations_rejects_unknown_model():
+    with pytest.raises(ValueError, match="Unknown model_name"):
+        steering.get_standard_activations(model_name="unknown-model")
