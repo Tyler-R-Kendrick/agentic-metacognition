@@ -446,12 +446,13 @@ class InMemorySteeringMemory:
         if trace_id in self._observed_trace_ids:
             observed_feature_ids = trace.metadata.get("observed_feature_ids", trace.observed_feature_ids)
             trace.observed_feature_ids = [str(feature_id) for feature_id in observed_feature_ids]
-            return [
-                feature
-                for feature_id in trace.observed_feature_ids
-                for feature in [self._dynamic_features.get(trace.model_name, {}).get(feature_id)]
-                if feature is not None
-            ]
+            model_features = self._dynamic_features.get(trace.model_name, {})
+            existing_features: list[ObservedInteractionFeature] = []
+            for feature_id in trace.observed_feature_ids:
+                feature = model_features.get(feature_id)
+                if feature is not None:
+                    existing_features.append(feature)
+            return existing_features
         self.activation_traces.append(trace)
         self._observed_trace_ids.add(trace_id)
         observed_features = discover_interaction_features([trace])
@@ -591,7 +592,7 @@ def _record_graph_state(
     record_state = getattr(graph_store, "record_state", None)
     if not callable(record_state):
         return _call_component(graph_store, "record_state", run_handle, **kwargs)
-    if observed_features:
+    if observed_features is not None:
         try:
             signature = inspect.signature(record_state)
         except (TypeError, ValueError):
