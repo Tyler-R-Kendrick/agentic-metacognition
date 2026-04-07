@@ -216,12 +216,21 @@ class FeatureCatalog:
 
     def __post_init__(self) -> None:
         self.model_name = _require_text(self.model_name, "model_name")
-        self.features = [
-            feature
-            if isinstance(feature, FeatureSpec)
-            else FeatureSpec.from_dict(feature, model_name=self.model_name)
-            for feature in self.features
-        ]
+        normalized_features: list[FeatureSpec] = []
+        for feature in self.features:
+            if isinstance(feature, FeatureSpec):
+                if feature.model_name != self.model_name:
+                    raise ValueError(
+                        "All features in a FeatureCatalog must have the same model_name; "
+                        f"expected {self.model_name!r}, got {feature.model_name!r} "
+                        f"for feature {feature.name!r}."
+                    )
+                normalized_features.append(feature)
+            else:
+                normalized_features.append(
+                    FeatureSpec.from_dict(feature, model_name=self.model_name)
+                )
+        self.features = normalized_features
         self.metadata = _coerce_metadata(self.metadata)
         feature_names = [feature.name for feature in self.features]
         if len(feature_names) != len(set(feature_names)):
@@ -299,7 +308,8 @@ def _build_feature_catalogs(raw_catalog: Mapping[str, Any]) -> dict[str, Feature
 
 def get_standard_feature_models() -> list[str]:
     """Return model names that have starter feature specs."""
-    return list(load_standard_feature_catalogs())
+    raw_catalog = _load_standard_feature_catalog_payload()
+    return list(raw_catalog["models"])
 
 
 def get_standard_feature_catalog(model_name: str | None = None) -> FeatureCatalog:

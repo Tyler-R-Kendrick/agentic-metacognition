@@ -18,6 +18,7 @@ from transformers import (
 )
 
 import activation_steering as steering
+import activation_steering.features as steering_features
 
 
 POSITIVE_TEXTS = [
@@ -454,6 +455,15 @@ def test_load_standard_activation_catalog_returns_valid_structure():
     assert "gpt2" in catalog["models"]
 
 
+def test_load_standard_activation_catalog_returns_deep_copy():
+    catalog = steering.load_standard_activation_catalog()
+    catalog["models"]["gpt2"]["activations"][0]["name"] = "mutated"
+
+    fresh_catalog = steering.load_standard_activation_catalog()
+
+    assert fresh_catalog["models"]["gpt2"]["activations"][0]["name"] != "mutated"
+
+
 def test_get_standard_activations_returns_default_model_entries():
     activations = steering.get_standard_activations()
     categories = {activation["category"] for activation in activations}
@@ -470,6 +480,15 @@ def test_get_standard_activations_returns_default_model_entries():
         "react",
         "chain_of_thought",
     }.issubset(activation_names)
+
+
+def test_get_standard_activations_returns_copied_entries():
+    activations = steering.get_standard_activations()
+    activations[0]["name"] = "mutated"
+
+    fresh_activations = steering.get_standard_activations()
+
+    assert fresh_activations[0]["name"] != "mutated"
 
 
 def test_get_standard_activations_filters_by_category():
@@ -607,6 +626,35 @@ def test_feature_catalog_rejects_duplicate_feature_names():
                 ),
             ],
         )
+
+
+def test_feature_catalog_rejects_mismatched_feature_model_names():
+    with pytest.raises(ValueError, match="must have the same model_name"):
+        steering.FeatureCatalog(
+            model_name="gpt2",
+            features=[
+                steering.build_feature_spec(
+                    name="mismatch",
+                    model_name="llama",
+                    category="reasoning_strategy",
+                    summary="Wrong model.",
+                    extraction_examples=[{"text": "a", "label": "positive"}],
+                    test_cases=[{"text": "b", "label": "test"}],
+                    evaluation_criteria=[
+                        {"name": "criterion", "description": "desc"},
+                    ],
+                )
+            ],
+        )
+
+
+def test_get_standard_feature_models_uses_raw_payload(monkeypatch):
+    def fail_if_called():
+        raise AssertionError("load_standard_feature_catalogs should not be called")
+
+    monkeypatch.setattr(steering_features, "load_standard_feature_catalogs", fail_if_called)
+
+    assert steering.get_standard_feature_models() == ["gpt2"]
 
 
 def test_discover_and_store_feature_vectors_runs_minimal_flow(tokenizer, tmp_path):

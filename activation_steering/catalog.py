@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import json
 from functools import lru_cache
 from importlib.resources import files
@@ -26,7 +27,7 @@ def _load_standard_activation_catalog_payload() -> dict[str, Any]:
 
 def load_standard_activation_catalog() -> dict[str, Any]:
     """Load the file-backed standard activation catalog."""
-    return _load_standard_activation_catalog_payload().copy()
+    return copy.deepcopy(_load_standard_activation_catalog_payload())
 
 
 def get_standard_activation_models() -> list[str]:
@@ -51,5 +52,5 @@ def get_standard_activations(
         ) from exc
 
     if category is None:
-        return activations
-    return [activation for activation in activations if activation["category"] == category]
+        return [dict(activation) for activation in activations]
+    return [dict(activation) for activation in activations if activation["category"] == category]
