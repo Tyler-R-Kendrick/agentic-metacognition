@@ -3,7 +3,13 @@ from __future__ import annotations
 import json
 from functools import lru_cache
 from importlib.resources import files
-from typing import Any
+from typing import Any, TypedDict
+
+
+class ActivationEntry(TypedDict):
+    name: str
+    category: str
+    summary: str
 
 STANDARD_ACTIVATIONS_PATH = files("activation_steering").joinpath(
     "data", "standard_activations.json"
@@ -30,7 +36,7 @@ def get_standard_activation_models() -> list[str]:
 def get_standard_activations(
     model_name: str | None = None,
     category: str | None = None,
-) -> list[dict]:
+) -> list[ActivationEntry]:
     """Return the standard activations for one model, optionally filtered by category."""
     catalog = _load_standard_activation_catalog_payload()
     selected_model = model_name or catalog["default_model"]

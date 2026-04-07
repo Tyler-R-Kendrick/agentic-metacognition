@@ -514,6 +514,7 @@ def test_build_feature_spec_validates_and_filters_texts():
         metadata={"owner": "tests"},
     )
     assert spec.get_extraction_texts(label="positive") == ["2 + 2 = 4 with steps"]
+    assert spec.get_extraction_texts(label="negative") == ["2 + 2 = 4"]
     assert spec.get_test_texts() == ["What is 7 + 5?"]
     assert spec.metadata == {"owner": "tests"}
 

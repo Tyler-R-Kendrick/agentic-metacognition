@@ -154,8 +154,15 @@ class FeatureSpec:
         return self._filter_texts(self.test_cases, label=label)
 
     @staticmethod
-    def _filter_texts(examples: list[FeatureExample], label: str | None = None) -> list[str]:
-        return [example.text for example in examples if label is None or example.label == label]
+    def _filter_texts(
+        feature_examples: list[FeatureExample],
+        label: str | None = None,
+    ) -> list[str]:
+        return [
+            example.text
+            for example in feature_examples
+            if label is None or example.label == label
+        ]
 
     def to_dict(self) -> dict[str, Any]:
         return {
