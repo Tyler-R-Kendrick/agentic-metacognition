@@ -284,7 +284,7 @@ class Neo4jGraphStore:
         "Evidence": "evidence_id",
         "Run": "run_id",
         "State": "state_id",
-        "InteractionFeature": "feature_id",
+        "InteractionFeature": ("model_name", "feature_id"),
         "DriftEvent": "event_id",
         "Correction": "correction_id",
     }
