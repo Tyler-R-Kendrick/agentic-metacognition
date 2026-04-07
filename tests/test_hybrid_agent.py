@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -278,3 +279,116 @@ def test_hybrid_meta_cognition_agent_falls_back_and_records_memory():
     assert executor.calls == ["retrieval_augmented_context_v1", None]
     assert len(memory.run_history) == 1
     assert memory.controller_success_rate("qa", "retrieval_augmented_context_v1") == pytest.approx(0.0)
+
+
+def test_hybrid_meta_cognition_agent_persists_runtime_artifacts_on_close(tmp_path):
+    controller = steering.SteeringController(
+        controller_id="retrieval_augmented_context_v1",
+        feature_name="retrieval_augmented_context",
+        layer_idx=0,
+        vector=torch.tensor([1.0, 0.0]),
+        task_types=("qa",),
+        metadata={
+            "category": "reasoning_strategy",
+            "summary": "Use retrieved evidence to anchor the answer.",
+            "model_name": "stub-model",
+            "evaluation_criteria": [{"name": "groundedness", "description": "stay grounded"}],
+        },
+    )
+    memory = steering.InMemorySteeringMemory([controller])
+
+    class StubExecutor:
+        def execute(self, task, plan, context, controller=None, controllers=(), max_new_tokens=80):
+            return steering.ExecutorResult(
+                prompt=f"task={task}\ncontext={' | '.join(context)}",
+                output_text="fallback answer",
+                controller_id=controller.controller_id if controller else None,
+                activation_trace=steering.ActivationTrace(
+                    model_name="stub-model",
+                    controller_id=controller.controller_id if controller else None,
+                    layer_idx=controller.layer_idx if controller else None,
+                    prompt="stub prompt",
+                    top_feature_scores=[
+                        steering.SteeringFeatureScore(feature_id="retrieval_augmented_context_v1", score=0.75)
+                    ],
+                ),
+            )
+
+    def planner(task, memory_store):
+        return steering.PlannerDecision(
+            task_type="qa",
+            needs_retrieval=True,
+            use_steering=True,
+            allow_fallback=False,
+            metadata={
+                "task_id": "task-1",
+                "intent_id": "intent-1",
+                "intent_text": "Answer the capital question with evidence.",
+                "subgoals": [
+                    {"subgoal_id": "sg-1", "text": "Use supported France evidence.", "order": 1}
+                ],
+                "active_subgoal_id": "sg-1",
+            },
+        )
+
+    def retriever(task, plan):
+        return steering.PathRAGContext(
+            current_intent="Answer the capital question with evidence.",
+            active_subgoal="Use supported France evidence.",
+            evidence_paths=[
+                steering.RetrievedPath(
+                    path_id="path-1",
+                    path_kind="evidence",
+                    path_text="Chunk -> Claim <- Evidence",
+                    score=0.9,
+                    root_anchor="Use supported France evidence.",
+                    supporting_node_ids=("chunk-1", "claim-1"),
+                    metadata={"support": "Paris is the capital of France."},
+                )
+            ],
+        )
+
+    def verifier(task, draft, context, plan):
+        return steering.VerifierResult(passed=True, confidence=0.95)
+
+    with steering.HybridMetaCognitionAgent(
+        planner=planner,
+        retriever=retriever,
+        executor=StubExecutor(),
+        verifier=verifier,
+        memory=memory,
+        artifact_dir=tmp_path,
+    ) as agent:
+        run = agent.run("What is the capital of France?")
+
+    assert run.verdict.passed is True
+    adaptive_discoveries_path = tmp_path / "adaptive_discoveries.json"
+    graph_state_path = tmp_path / "graph_state.json"
+    graph_visualization_path = tmp_path / "graph_state.svg"
+    assert adaptive_discoveries_path.is_file()
+    assert graph_state_path.is_file()
+    assert graph_visualization_path.is_file()
+
+    adaptive_discoveries = json.loads(adaptive_discoveries_path.read_text(encoding="utf-8"))
+    assert adaptive_discoveries["feature_vector_count"] == 1
+    assert adaptive_discoveries["activation_trace_count"] == 1
+    assert adaptive_discoveries["feature_vectors"][0]["controller_id"] == "retrieval_augmented_context_v1"
+    assert adaptive_discoveries["feature_vectors"][0]["summary"] == (
+        "Use retrieved evidence to anchor the answer."
+    )
+
+    graph_state = json.loads(graph_state_path.read_text(encoding="utf-8"))
+    assert graph_state["run_count"] == 1
+    assert {node["kind"] for node in graph_state["nodes"]} >= {
+        "Task",
+        "Intent",
+        "Subgoal",
+        "Run",
+        "Controller",
+        "Draft",
+        "Verdict",
+        "RetrievedPath",
+    }
+    assert {"source": "session-run-1", "target": "task-1", "type": "HAS_TASK"} in graph_state["edges"]
+    assert graph_state["runs"][0]["task_plan"]["intent_id"] == "intent-1"
+    assert graph_visualization_path.read_text(encoding="utf-8").startswith("<svg")

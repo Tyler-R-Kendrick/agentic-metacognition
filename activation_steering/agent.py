@@ -2,15 +2,19 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
+from html import escape
 from pathlib import Path
 from typing import Any, Callable, Iterable, Mapping, Protocol, Sequence
 
+import networkx as nx
 import torch
 
+from .graphrag import GraphTaskPlan
 from .models import DEFAULT_MAX_NEW_TOKENS, get_last_token_hidden, generate
 from .steering import generate_with_decaying_steering, generate_with_steering
 
 UNKNOWN_CONTROLLER_SORT_VALUE = float("-inf")
+RUNTIME_ARTIFACT_FORMAT_VERSION = 1
 
 
 def _require_text(value: str, field_name: str) -> str:
@@ -505,6 +509,439 @@ def _drift_score_from_verifier(verdict: VerifierResult) -> float:
     return max(0.0, 1.0 - float(verdict.confidence))
 
 
+def _truncate_text(text: Any, limit: int = 72) -> str:
+    normalized = " ".join(str(text).split())
+    if len(normalized) <= limit:
+        return normalized
+    return normalized[: max(limit - 1, 1)].rstrip() + "…"
+
+
+def _serialize_task_plan(task_plan: GraphTaskPlan) -> dict[str, Any]:
+    return {
+        "task_id": task_plan.task_id,
+        "user_query": task_plan.user_query,
+        "intent_id": task_plan.intent_id,
+        "intent_text": task_plan.intent_text,
+        "goal_type": task_plan.goal_type,
+        "priority": task_plan.priority,
+        "risk_level": task_plan.risk_level,
+        "active_subgoal_id": task_plan.active_subgoal.subgoal_id,
+        "constraints": [
+            {
+                "constraint_id": constraint.constraint_id,
+                "type": constraint.type,
+                "value": constraint.value,
+            }
+            for constraint in task_plan.constraints
+        ],
+        "subgoals": [
+            {
+                "subgoal_id": subgoal.subgoal_id,
+                "text": subgoal.text,
+                "order": subgoal.order,
+                "status": subgoal.status,
+                "metadata": dict(subgoal.metadata),
+            }
+            for subgoal in task_plan.subgoals
+        ],
+        "metadata": dict(task_plan.metadata),
+    }
+
+
+def _serialize_feature_vector(controller: SteeringController) -> dict[str, Any]:
+    metadata = dict(controller.metadata)
+    return {
+        "name": controller.feature_name,
+        "feature_name": controller.feature_name,
+        "controller_id": controller.controller_id,
+        "model_name": metadata.get("model_name"),
+        "category": metadata.get("category"),
+        "summary": metadata.get("summary"),
+        "layer_idx": controller.layer_idx,
+        "vector": controller.vector.tolist(),
+        "vector_norm": float(controller.vector.norm().item()),
+        "vector_size": int(controller.vector.numel()),
+        "positive_example_count": int(metadata.get("positive_example_count", 0)),
+        "negative_example_count": int(metadata.get("negative_example_count", 0)),
+        "test_case_count": int(metadata.get("test_case_count", 0)),
+        "evaluation_criteria": list(metadata.get("evaluation_criteria", ())),
+        "alpha": float(controller.alpha),
+        "decay": float(controller.decay),
+        "max_steps": controller.max_steps,
+        "task_types": list(controller.task_types),
+        "metadata": metadata,
+    }
+
+
+def _serialize_activation_trace(trace: ActivationTrace) -> dict[str, Any]:
+    return {
+        "model_name": trace.model_name,
+        "controller_id": trace.controller_id,
+        "layer_idx": trace.layer_idx,
+        "prompt": trace.prompt,
+        "prompt_hidden_norm": trace.prompt_hidden_norm,
+        "top_feature_scores": [
+            {"feature_id": score.feature_id, "score": score.score}
+            for score in trace.top_feature_scores
+        ],
+        "metadata": dict(trace.metadata),
+    }
+
+
+def _serialize_verdict(verdict: VerifierResult) -> dict[str, Any]:
+    return {
+        "passed": bool(verdict.passed),
+        "confidence": float(verdict.confidence),
+        "issues": list(verdict.issues),
+        "metadata": dict(verdict.metadata),
+    }
+
+
+def _build_runtime_discoveries_payload(memory: InMemorySteeringMemory) -> dict[str, Any]:
+    controllers = sorted(memory.list_controllers(), key=lambda item: item.controller_id)
+    activation_traces = [
+        _serialize_activation_trace(trace)
+        for trace in memory.activation_traces
+    ]
+    controller_stats = []
+    for (task_type, controller_id), stats in sorted(memory._stats.items()):
+        total = stats["total"]
+        success = stats["success"]
+        controller_stats.append(
+            {
+                "task_type": task_type,
+                "controller_id": controller_id,
+                "success": success,
+                "total": total,
+                "success_rate": (success / total) if total else None,
+            }
+        )
+    return {
+        "format_version": RUNTIME_ARTIFACT_FORMAT_VERSION,
+        "run_count": len(memory.run_history),
+        "feature_vector_count": len(controllers),
+        "feature_vectors": [_serialize_feature_vector(controller) for controller in controllers],
+        "activation_trace_count": len(activation_traces),
+        "activation_traces": activation_traces,
+        "controller_stats": controller_stats,
+    }
+
+
+def _add_graph_node(
+    nodes: dict[str, dict[str, Any]],
+    *,
+    node_id: str,
+    kind: str,
+    label: str,
+    metadata: Mapping[str, Any] | None = None,
+) -> None:
+    nodes[node_id] = {
+        "id": node_id,
+        "kind": kind,
+        "label": label,
+        "metadata": dict(metadata or {}),
+    }
+
+
+def _add_graph_edge(
+    edges: dict[tuple[str, str, str], dict[str, str]],
+    *,
+    source: str,
+    target: str,
+    edge_type: str,
+) -> None:
+    edges[(source, target, edge_type)] = {
+        "source": source,
+        "target": target,
+        "type": edge_type,
+    }
+
+
+def _build_runtime_graph_payload(run_history: Sequence[HybridAgentRun]) -> dict[str, Any]:
+    nodes: dict[str, dict[str, Any]] = {}
+    edges: dict[tuple[str, str, str], dict[str, str]] = {}
+    runs = []
+
+    for index, run in enumerate(run_history, start=1):
+        task_plan = GraphTaskPlan.from_task_and_plan(run.task, run.plan)
+        run_id = str(run.metadata.get("graph_run_id") or f"session-run-{index}")
+        run_summary = {
+            "run_id": run_id,
+            "task": run.task,
+            "selected_controller_id": run.selected_controller_id,
+            "fallback_used": bool(run.fallback_used),
+            "task_plan": _serialize_task_plan(task_plan),
+            "draft": {
+                "prompt": run.draft.prompt,
+                "output_text": run.draft.output_text,
+                "controller_id": run.draft.controller_id,
+                "activation_trace": (
+                    _serialize_activation_trace(run.draft.activation_trace)
+                    if run.draft.activation_trace is not None
+                    else None
+                ),
+                "metadata": dict(run.draft.metadata),
+            },
+            "verdict": _serialize_verdict(run.verdict),
+            "metadata": dict(run.metadata),
+        }
+        runs.append(run_summary)
+
+        _add_graph_node(
+            nodes,
+            node_id=task_plan.task_id,
+            kind="Task",
+            label=_truncate_text(task_plan.user_query),
+            metadata={"risk_level": task_plan.risk_level, "goal_type": task_plan.goal_type},
+        )
+        _add_graph_node(
+            nodes,
+            node_id=task_plan.intent_id,
+            kind="Intent",
+            label=_truncate_text(task_plan.intent_text),
+            metadata={"priority": task_plan.priority},
+        )
+        _add_graph_edge(edges, source=task_plan.task_id, target=task_plan.intent_id, edge_type="SEEKS")
+        for subgoal in task_plan.subgoals:
+            _add_graph_node(
+                nodes,
+                node_id=subgoal.subgoal_id,
+                kind="Subgoal",
+                label=_truncate_text(subgoal.text),
+                metadata={"order": subgoal.order, "status": subgoal.status},
+            )
+            _add_graph_edge(
+                edges,
+                source=task_plan.task_id,
+                target=subgoal.subgoal_id,
+                edge_type="DECOMPOSED_INTO",
+            )
+            _add_graph_edge(
+                edges,
+                source=subgoal.subgoal_id,
+                target=task_plan.intent_id,
+                edge_type="SUPPORTS_INTENT",
+            )
+        _add_graph_node(nodes, node_id=run_id, kind="Run", label=run_id, metadata={"index": index})
+        _add_graph_edge(edges, source=run_id, target=task_plan.task_id, edge_type="HAS_TASK")
+
+        if run.selected_controller_id is not None:
+            _add_graph_node(
+                nodes,
+                node_id=f"controller:{run.selected_controller_id}",
+                kind="Controller",
+                label=_truncate_text(run.selected_controller_id),
+                metadata={},
+            )
+            _add_graph_edge(
+                edges,
+                source=run_id,
+                target=f"controller:{run.selected_controller_id}",
+                edge_type="SELECTED_CONTROLLER",
+            )
+
+        draft_node_id = f"{run_id}:draft"
+        _add_graph_node(
+            nodes,
+            node_id=draft_node_id,
+            kind="Draft",
+            label=_truncate_text(run.draft.output_text),
+            metadata={"controller_id": run.draft.controller_id},
+        )
+        _add_graph_edge(edges, source=run_id, target=draft_node_id, edge_type="HAS_DRAFT")
+
+        verdict_node_id = f"{run_id}:verdict"
+        _add_graph_node(
+            nodes,
+            node_id=verdict_node_id,
+            kind="Verdict",
+            label="passed" if run.verdict.passed else "failed",
+            metadata={
+                "confidence": float(run.verdict.confidence),
+                "issues": list(run.verdict.issues),
+            },
+        )
+        _add_graph_edge(edges, source=draft_node_id, target=verdict_node_id, edge_type="EVALUATED_AS")
+
+        if run.path_context is not None:
+            path_groups = (
+                ("evidence_paths", run.path_context.evidence_paths, "EVIDENCE_PATH"),
+                ("analogous_prior_paths", run.path_context.analogous_prior_paths, "ANALOGOUS_PATH"),
+                ("correction_paths", run.path_context.correction_paths, "CORRECTION_PATH"),
+            )
+            for _, paths, edge_type in path_groups:
+                for path in paths:
+                    _add_graph_node(
+                        nodes,
+                        node_id=path.path_id,
+                        kind="RetrievedPath",
+                        label=_truncate_text(path.path_text),
+                        metadata={
+                            "path_kind": path.path_kind,
+                            "score": float(path.score),
+                            "root_anchor": path.root_anchor,
+                            "supporting_node_ids": list(path.supporting_node_ids),
+                            "metadata": dict(path.metadata),
+                        },
+                    )
+                    _add_graph_edge(edges, source=run_id, target=path.path_id, edge_type=edge_type)
+                    _add_graph_edge(
+                        edges,
+                        source=path.path_id,
+                        target=task_plan.intent_id,
+                        edge_type="SERVES",
+                    )
+                    _add_graph_edge(
+                        edges,
+                        source=path.path_id,
+                        target=task_plan.active_subgoal.subgoal_id,
+                        edge_type="ANCHORS",
+                    )
+
+        if run.fallback_used:
+            drift_node_id = f"{run_id}:drift"
+            correction_node_id = f"{run_id}:correction"
+            _add_graph_node(
+                nodes,
+                node_id=drift_node_id,
+                kind="DriftEvent",
+                label="verifier_rejected_steered_draft",
+                metadata={"score": _drift_score_from_verifier(run.verdict)},
+            )
+            _add_graph_node(
+                nodes,
+                node_id=correction_node_id,
+                kind="Correction",
+                label="fallback_to_unsteered_execution",
+                metadata={"outcome": "retrying_without_steering"},
+            )
+            _add_graph_edge(edges, source=draft_node_id, target=drift_node_id, edge_type="TRIGGERED")
+            _add_graph_edge(
+                edges,
+                source=drift_node_id,
+                target=correction_node_id,
+                edge_type="CORRECTED_BY",
+            )
+            _add_graph_edge(
+                edges,
+                source=correction_node_id,
+                target=task_plan.active_subgoal.subgoal_id,
+                edge_type="RESTORED",
+            )
+
+    return {
+        "format_version": RUNTIME_ARTIFACT_FORMAT_VERSION,
+        "graph_type": "hybrid_meta_cognition_runtime",
+        "run_count": len(runs),
+        "runs": runs,
+        "nodes": sorted(nodes.values(), key=lambda item: (item["kind"], item["id"])),
+        "edges": sorted(edges.values(), key=lambda item: (item["source"], item["target"], item["type"])),
+    }
+
+
+def _write_json_artifact(path: Path, payload: Mapping[str, Any]) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+    return path
+
+
+def _scale_coordinate(value: float, lower: float, upper: float, size: float, padding: float) -> float:
+    if upper - lower == 0:
+        return size / 2
+    return padding + ((value - lower) / (upper - lower)) * (size - 2 * padding)
+
+
+def _write_graph_visualization_artifact(path: Path, graph_payload: Mapping[str, Any]) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    graph = nx.DiGraph()
+    for node in graph_payload.get("nodes", ()):
+        graph.add_node(node["id"], label=node["label"], kind=node["kind"])
+    for edge in graph_payload.get("edges", ()):
+        graph.add_edge(edge["source"], edge["target"], relation=edge["type"])
+
+    if not graph.nodes:
+        path.write_text(
+            (
+                '<svg xmlns="http://www.w3.org/2000/svg" width="960" height="200">'
+                '<rect width="100%" height="100%" fill="#f8fafc" />'
+                '<text x="480" y="100" text-anchor="middle" font-size="18" '
+                'font-family="Arial, sans-serif" fill="#0f172a">No graph state recorded.</text>'
+                "</svg>"
+            ),
+            encoding="utf-8",
+        )
+        return path
+
+    positions = nx.spring_layout(graph, seed=42)
+    xs = [point[0] for point in positions.values()]
+    ys = [point[1] for point in positions.values()]
+    width = max(960, 200 * max(len(graph.nodes), 1))
+    height = max(720, 120 * max(len(graph.nodes), 1))
+    padding = 80.0
+    scaled_positions = {
+        node_id: (
+            _scale_coordinate(point[0], min(xs), max(xs), float(width), padding),
+            _scale_coordinate(point[1], min(ys), max(ys), float(height), padding),
+        )
+        for node_id, point in positions.items()
+    }
+
+    color_by_kind = {
+        "Task": "#dbeafe",
+        "Intent": "#fde68a",
+        "Subgoal": "#dcfce7",
+        "Run": "#e9d5ff",
+        "Controller": "#fbcfe8",
+        "Draft": "#fecaca",
+        "Verdict": "#bfdbfe",
+        "RetrievedPath": "#fed7aa",
+        "DriftEvent": "#fecdd3",
+        "Correction": "#c7d2fe",
+    }
+    node_width = 180.0
+    node_height = 52.0
+    svg_lines = [
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}">',
+        '<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#94a3b8" /></marker></defs>',
+        '<rect width="100%" height="100%" fill="#f8fafc" />',
+    ]
+    for source_id, target_id, data in graph.edges(data=True):
+        source_x, source_y = scaled_positions[source_id]
+        target_x, target_y = scaled_positions[target_id]
+        svg_lines.append(
+            f'<line x1="{source_x:.2f}" y1="{source_y:.2f}" x2="{target_x:.2f}" y2="{target_y:.2f}" '
+            'stroke="#94a3b8" stroke-width="2" marker-end="url(#arrow)" />'
+        )
+        label_x = (source_x + target_x) / 2
+        label_y = (source_y + target_y) / 2 - 6
+        svg_lines.append(
+            f'<text x="{label_x:.2f}" y="{label_y:.2f}" text-anchor="middle" '
+            'font-size="11" font-family="Arial, sans-serif" fill="#475569">'
+            f'{escape(str(data["relation"]))}</text>'
+        )
+    for node_id, data in graph.nodes(data=True):
+        x, y = scaled_positions[node_id]
+        fill = color_by_kind.get(data["kind"], "#e2e8f0")
+        svg_lines.append(
+            f'<rect x="{x - node_width / 2:.2f}" y="{y - node_height / 2:.2f}" '
+            f'width="{node_width:.2f}" height="{node_height:.2f}" rx="12" ry="12" '
+            f'fill="{fill}" stroke="#334155" stroke-width="1.5" />'
+        )
+        svg_lines.append(
+            f'<text x="{x:.2f}" y="{y - 4:.2f}" text-anchor="middle" '
+            'font-size="12" font-weight="bold" font-family="Arial, sans-serif" fill="#0f172a">'
+            f'{escape(str(data["kind"]))}</text>'
+        )
+        svg_lines.append(
+            f'<text x="{x:.2f}" y="{y + 14:.2f}" text-anchor="middle" '
+            'font-size="11" font-family="Arial, sans-serif" fill="#334155">'
+            f'{escape(_truncate_text(data["label"], limit=28))}</text>'
+        )
+    svg_lines.append("</svg>")
+    path.write_text("\n".join(svg_lines), encoding="utf-8")
+    return path
+
+
 class HybridMetaCognitionAgent:
     """Composable planner/retriever/executor/verifier loop with memory-backed controller routing."""
 
@@ -523,6 +960,7 @@ class HybridMetaCognitionAgent:
         | None = None,
         graph_store: Any | None = None,
         max_new_tokens: int = DEFAULT_MAX_NEW_TOKENS,
+        artifact_dir: str | Path | None = None,
     ) -> None:
         self.planner = planner
         self.retriever = retriever
@@ -532,6 +970,40 @@ class HybridMetaCognitionAgent:
         self.memory = memory
         self.graph_store = graph_store
         self.max_new_tokens = max_new_tokens
+        self.artifact_dir = Path(artifact_dir) if artifact_dir is not None else None
+
+    def __enter__(self) -> HybridMetaCognitionAgent:
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        self.close()
+
+    def persist_artifacts(self, artifact_dir: str | Path | None = None) -> dict[str, Path] | None:
+        destination = self.artifact_dir if artifact_dir is None else Path(artifact_dir)
+        close_graph_store = getattr(self.graph_store, "close", None)
+        try:
+            if destination is None:
+                return None
+            destination.mkdir(parents=True, exist_ok=True)
+            runtime_discoveries = _build_runtime_discoveries_payload(self.memory)
+            graph_payload = _build_runtime_graph_payload(self.memory.run_history)
+            return {
+                "adaptive_discoveries": _write_json_artifact(
+                    destination / "adaptive_discoveries.json",
+                    runtime_discoveries,
+                ),
+                "graph_state": _write_json_artifact(destination / "graph_state.json", graph_payload),
+                "graph_visualization": _write_graph_visualization_artifact(
+                    destination / "graph_state.svg",
+                    graph_payload,
+                ),
+            }
+        finally:
+            if callable(close_graph_store):
+                close_graph_store()
+
+    def close(self) -> dict[str, Path] | None:
+        return self.persist_artifacts()
 
     def run(self, task: str) -> HybridAgentRun:
         normalized_task = _require_text(task, "task")
