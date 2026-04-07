@@ -237,7 +237,9 @@ class DecayingActivationSteerer(ActivationSteerer):
         if self.max_steps is not None and self._step >= self.max_steps:
             return 0.0
         scale = self.alpha * (self.decay**self._step)
-        self._step += 1
+        is_prefill_pass = hidden.dim() > 1 and hidden.shape[1] > 1
+        if not is_prefill_pass:
+            self._step += 1
         return scale
 
 
