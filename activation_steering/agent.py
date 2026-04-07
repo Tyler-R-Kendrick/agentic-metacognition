@@ -444,7 +444,10 @@ class InMemorySteeringMemory:
         trace_id = str(trace.metadata.get("interaction_trace_id") or f"trace-{uuid4().hex}")
         trace.metadata["interaction_trace_id"] = trace_id
         if trace_id in self._observed_trace_ids:
-            observed_feature_ids = trace.metadata.get("observed_feature_ids", trace.observed_feature_ids)
+            observed_feature_ids = trace.metadata.get(
+                "observed_feature_ids",
+                getattr(trace, "observed_feature_ids", []),
+            )
             trace.observed_feature_ids = [str(feature_id) for feature_id in observed_feature_ids]
             model_features = self._dynamic_features.get(trace.model_name, {})
             existing_features: list[ObservedInteractionFeature] = []
