@@ -20,6 +20,8 @@ SVG_MIN_WIDTH = 960
 SVG_WIDTH_PER_NODE = 200
 SVG_MIN_HEIGHT = 720
 SVG_HEIGHT_PER_NODE = 120
+SVG_MAX_WIDTH = 2400
+SVG_MAX_HEIGHT = 1800
 SCALE_EPSILON = 1e-10
 
 
@@ -529,9 +531,11 @@ def _drift_score_from_verifier(verdict: VerifierResult) -> float:
 
 def _truncate_text(value: Any, limit: int = 72) -> str:
     normalized = " ".join(str(value).split())
+    if limit <= MIN_TRUNCATE_LENGTH:
+        return normalized if len(normalized) <= limit else "…"
     if len(normalized) <= limit:
         return normalized
-    return normalized[: max(limit - 1, MIN_TRUNCATE_LENGTH)].rstrip() + "…"
+    return normalized[: limit - 1].rstrip() + "…"
 
 
 def _serialize_task_plan(task_plan: GraphTaskPlan) -> dict[str, Any]:
@@ -877,8 +881,14 @@ def _write_graph_visualization_artifact(path: Path, graph_payload: Mapping[str, 
     positions = nx.spring_layout(graph, seed=42)
     xs = [point[0] for point in positions.values()]
     ys = [point[1] for point in positions.values()]
-    width = max(SVG_MIN_WIDTH, SVG_WIDTH_PER_NODE * max(len(graph.nodes), 1))
-    height = max(SVG_MIN_HEIGHT, SVG_HEIGHT_PER_NODE * max(len(graph.nodes), 1))
+    width = min(
+        SVG_MAX_WIDTH,
+        max(SVG_MIN_WIDTH, SVG_WIDTH_PER_NODE * max(len(graph.nodes), 1)),
+    )
+    height = min(
+        SVG_MAX_HEIGHT,
+        max(SVG_MIN_HEIGHT, SVG_HEIGHT_PER_NODE * max(len(graph.nodes), 1)),
+    )
     padding = 80.0
     scaled_positions = {
         node_id: (
@@ -1009,6 +1019,7 @@ class HybridMetaCognitionAgent:
                 try:
                     close_graph_store()
                 except Exception:
+                    # Preserve the original artifact persistence failure if cleanup also fails.
                     if persistence_error is None:
                         raise
 
