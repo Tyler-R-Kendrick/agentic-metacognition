@@ -1,6 +1,32 @@
 """Reusable activation steering helpers for decoder-only Hugging Face models."""
 
+from .catalog import (
+    STANDARD_ACTIVATION_CATALOG_PATH,
+    STANDARD_ACTIVATIONS_PATH,
+    get_standard_activation_models,
+    get_standard_activations,
+    load_standard_activation_catalog,
+)
+from .discovery import (
+    DiscoveredFeatureVector,
+    discover_and_store_feature_vectors,
+    discover_feature_vectors,
+    save_discovered_feature_vectors,
+)
 from .evaluation import collect_evaluation_rows
+from .features import (
+    STANDARD_FEATURE_CATALOG_PATH,
+    STANDARD_FEATURE_SPECS_PATH,
+    EvaluationCriterion,
+    FeatureCatalog,
+    FeatureExample,
+    FeatureSpec,
+    build_feature_spec,
+    get_standard_feature_catalog,
+    get_standard_feature_models,
+    get_standard_feature_specs,
+    load_standard_feature_catalogs,
+)
 from .models import (
     DEFAULT_DO_SAMPLE,
     DEFAULT_MAX_NEW_TOKENS,
@@ -30,10 +56,22 @@ __all__ = [
     "AdaptiveActivationSteerer",
     "DEFAULT_DO_SAMPLE",
     "DEFAULT_MAX_NEW_TOKENS",
+    "DiscoveredFeatureVector",
+    "EvaluationCriterion",
+    "FeatureCatalog",
+    "FeatureExample",
+    "FeatureSpec",
+    "STANDARD_ACTIVATION_CATALOG_PATH",
+    "STANDARD_ACTIVATIONS_PATH",
+    "STANDARD_FEATURE_CATALOG_PATH",
+    "STANDARD_FEATURE_SPECS_PATH",
+    "build_feature_spec",
     "build_mean_difference_vector",
     "collect_evaluation_rows",
     "collect_last_token_hiddens",
     "cosine",
+    "discover_and_store_feature_vectors",
+    "discover_feature_vectors",
     "generate",
     "generate_with_adaptive_steering",
     "generate_with_steering",
@@ -41,9 +79,17 @@ __all__ = [
     "get_hidden_states",
     "get_last_token_hidden",
     "get_model_device",
+    "get_standard_activation_models",
+    "get_standard_activations",
+    "get_standard_feature_catalog",
+    "get_standard_feature_models",
+    "get_standard_feature_specs",
     "get_transformer_blocks",
     "get_transformer_layers",
+    "load_standard_activation_catalog",
+    "load_standard_feature_catalogs",
     "load_model_and_tokenizer",
+    "save_discovered_feature_vectors",
     "tokenize_text",
     "train_probe",
 ]

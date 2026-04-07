@@ -1,3 +1,6 @@
+import json
+from pathlib import Path
+
 import numpy as np
 import pytest
 import torch
@@ -15,6 +18,7 @@ from transformers import (
 )
 
 import activation_steering as steering
+import activation_steering.features as steering_features
 
 
 POSITIVE_TEXTS = [
@@ -442,3 +446,260 @@ def test_collect_evaluation_rows_returns_expected_shape(model, tokenizer):
     )
     assert len(rows) == 2
     assert set(rows[0]) == {"prompt", "baseline", "fixed", "adaptive"}
+
+
+def test_load_standard_activation_catalog_returns_valid_structure():
+    catalog = steering.load_standard_activation_catalog()
+    assert steering.STANDARD_ACTIVATIONS_PATH.is_file()
+    assert catalog["default_model"] == "gpt2"
+    assert "gpt2" in catalog["models"]
+
+
+def test_load_standard_activation_catalog_returns_deep_copy():
+    catalog = steering.load_standard_activation_catalog()
+    assert "gpt2" in catalog["models"]
+    assert catalog["models"]["gpt2"]["activations"]
+    catalog["models"]["gpt2"]["activations"][0]["name"] = "mutated"
+
+    fresh_catalog = steering.load_standard_activation_catalog()
+
+    assert fresh_catalog["models"]["gpt2"]["activations"][0]["name"] != "mutated"
+
+
+def test_get_standard_activations_returns_default_model_entries():
+    activations = steering.get_standard_activations()
+    categories = {activation["category"] for activation in activations}
+    activation_names = {activation["name"] for activation in activations}
+    assert {
+        "prompt_engineering",
+        "context_engineering",
+        "cognitive_architecture",
+        "reasoning_strategy",
+    }.issubset(categories)
+    assert {
+        "zero_shot_prompting",
+        "retrieval_augmented_context",
+        "react",
+        "chain_of_thought",
+    }.issubset(activation_names)
+
+
+def test_get_standard_activations_returns_copied_entries():
+    activations = steering.get_standard_activations()
+    assert activations
+    activations[0]["name"] = "mutated"
+
+    fresh_activations = steering.get_standard_activations()
+
+    assert fresh_activations[0]["name"] != "mutated"
+
+
+def test_get_standard_activations_filters_by_category():
+    activations = steering.get_standard_activations(category="prompt_engineering")
+    assert activations
+    assert {activation["category"] for activation in activations} == {"prompt_engineering"}
+
+
+def test_get_standard_activations_rejects_unknown_model():
+    with pytest.raises(ValueError, match="Unknown model_name"):
+        steering.get_standard_activations(model_name="unknown-model")
+
+
+def test_feature_example_round_trips_to_dict():
+    example = steering.FeatureExample(
+        text="Question: 2 + 2?\nAnswer: 4",
+        label="positive",
+        metadata={"source": "unit-test"},
+    )
+    restored = steering.FeatureExample.from_dict(example.to_dict())
+    assert restored.text == example.text
+    assert restored.label == example.label
+    assert restored.metadata == {"source": "unit-test"}
+
+
+def test_build_feature_spec_validates_and_filters_texts():
+    spec = steering.build_feature_spec(
+        name="math_reasoning",
+        model_name="gpt2",
+        category="reasoning_strategy",
+        summary="Capture multi-step arithmetic reasoning.",
+        extraction_examples=[
+            {"text": "2 + 2 = 4 with steps", "label": "positive"},
+            {"text": "2 + 2 = 4", "label": "negative"},
+        ],
+        test_cases=[
+            {"text": "What is 7 + 5?", "label": "requires_reasoning"},
+        ],
+        evaluation_criteria=[
+            {
+                "name": "contains_steps",
+                "description": "The response includes intermediate arithmetic steps.",
+            }
+        ],
+        metadata={"owner": "tests"},
+    )
+    assert spec.get_extraction_texts(label="positive") == ["2 + 2 = 4 with steps"]
+    assert spec.get_extraction_texts(label="negative") == ["2 + 2 = 4"]
+    assert spec.get_test_case_texts() == ["What is 7 + 5?"]
+    assert spec.metadata == {"owner": "tests"}
+
+
+def test_feature_spec_get_test_texts_alias_matches_get_test_case_texts():
+    spec = steering.build_feature_spec(
+        name="alias_check",
+        model_name="gpt2",
+        category="reasoning_strategy",
+        summary="Verify backward-compatible alias behavior.",
+        extraction_examples=[
+            {"text": "Worked answer", "label": "positive"},
+        ],
+        test_cases=[
+            {"text": "New question", "label": "requires_reasoning"},
+        ],
+        evaluation_criteria=[
+            {"name": "criterion", "description": "Check alias behavior."},
+        ],
+    )
+    assert spec.get_test_texts() == spec.get_test_case_texts()
+
+
+def test_feature_spec_requires_test_cases():
+    with pytest.raises(ValueError, match="test_cases"):
+        steering.FeatureSpec(
+            name="missing_tests",
+            model_name="gpt2",
+            category="reasoning_strategy",
+            summary="Invalid feature spec.",
+            extraction_examples=[{"text": "x", "label": "positive"}],
+            test_cases=[],
+            evaluation_criteria=[
+                {"name": "criterion", "description": "Something to check."},
+            ],
+        )
+
+
+def test_get_standard_feature_catalog_returns_typed_catalog():
+    catalog = steering.get_standard_feature_catalog()
+    assert steering.STANDARD_FEATURE_SPECS_PATH.is_file()
+    assert catalog.model_name == "gpt2"
+    assert "reasoning_strategy" in catalog.list_categories()
+    feature = catalog.get_feature("chain_of_thought")
+    assert feature.model_name == "gpt2"
+    assert feature.get_extraction_texts(label="positive")
+    assert feature.evaluation_criteria[0].name
+
+
+def test_get_standard_feature_specs_filters_by_category():
+    feature_specs = steering.get_standard_feature_specs(category="context_engineering")
+    assert feature_specs
+    assert {feature.category for feature in feature_specs} == {"context_engineering"}
+
+
+def test_get_standard_feature_catalog_rejects_unknown_model():
+    with pytest.raises(ValueError, match="Unknown model_name"):
+        steering.get_standard_feature_catalog(model_name="unknown-model")
+
+
+def test_feature_catalog_rejects_duplicate_feature_names():
+    with pytest.raises(ValueError, match="duplicate feature names"):
+        steering.FeatureCatalog(
+            model_name="gpt2",
+            features=[
+                steering.build_feature_spec(
+                    name="duplicate",
+                    model_name="gpt2",
+                    category="reasoning_strategy",
+                    summary="First feature.",
+                    extraction_examples=[{"text": "a", "label": "positive"}],
+                    test_cases=[{"text": "b", "label": "test"}],
+                    evaluation_criteria=[
+                        {"name": "criterion_one", "description": "desc"},
+                    ],
+                ),
+                steering.build_feature_spec(
+                    name="duplicate",
+                    model_name="gpt2",
+                    category="reasoning_strategy",
+                    summary="Second feature.",
+                    extraction_examples=[{"text": "c", "label": "positive"}],
+                    test_cases=[{"text": "d", "label": "test"}],
+                    evaluation_criteria=[
+                        {"name": "criterion_two", "description": "desc"},
+                    ],
+                ),
+            ],
+        )
+
+
+def test_feature_catalog_rejects_mismatched_feature_model_names():
+    with pytest.raises(ValueError, match="must have the same model_name"):
+        steering.FeatureCatalog(
+            model_name="gpt2",
+            features=[
+                steering.build_feature_spec(
+                    name="mismatch",
+                    model_name="llama",
+                    category="reasoning_strategy",
+                    summary="Wrong model.",
+                    extraction_examples=[{"text": "a", "label": "positive"}],
+                    test_cases=[{"text": "b", "label": "test"}],
+                    evaluation_criteria=[
+                        {"name": "criterion", "description": "desc"},
+                    ],
+                )
+            ],
+        )
+
+
+def test_get_standard_feature_models_uses_raw_payload(monkeypatch):
+    def raise_if_feature_catalogs_loaded():
+        raise AssertionError("load_standard_feature_catalogs should not be called")
+
+    monkeypatch.setattr(
+        steering_features,
+        "load_standard_feature_catalogs",
+        raise_if_feature_catalogs_loaded,
+    )
+
+    assert steering.get_standard_feature_models() == ["gpt2"]
+
+
+def test_discover_and_store_feature_vectors_runs_minimal_flow(tokenizer, tmp_path):
+    model = make_gpt2_model(tokenizer)
+    feature_specs = steering.get_standard_feature_specs()
+    output_path = tmp_path / "identified_feature_vectors.json"
+    fixture_path = (
+        Path(__file__).parent / "data" / "minimal_identified_feature_vectors.json"
+    )
+
+    discovered_vectors = steering.discover_and_store_feature_vectors(
+        feature_specs=feature_specs,
+        layer_idx=1,
+        model=model,
+        tokenizer=tokenizer,
+        device="cpu",
+        output_path=output_path,
+    )
+
+    assert output_path.is_file()
+    assert fixture_path.is_file()
+    payload = json.loads(output_path.read_text(encoding="utf-8"))
+    fixture_payload = json.loads(fixture_path.read_text(encoding="utf-8"))
+    assert payload["format_version"] == fixture_payload["format_version"]
+    assert payload["feature_vector_count"] == len(feature_specs)
+    assert payload["feature_vector_count"] == fixture_payload["feature_vector_count"]
+    assert len(discovered_vectors) == len(feature_specs)
+    assert {item["name"] for item in payload["feature_vectors"]} == {
+        feature_spec.name for feature_spec in feature_specs
+    }
+    for actual_item, expected_item in zip(
+        payload["feature_vectors"], fixture_payload["feature_vectors"], strict=True
+    ):
+        assert {key: value for key, value in actual_item.items() if key not in {"vector", "vector_norm"}} == {
+            key: value for key, value in expected_item.items() if key not in {"vector", "vector_norm"}
+        }
+        assert actual_item["vector"] == pytest.approx(expected_item["vector"], abs=1e-6)
+        assert actual_item["vector_norm"] == pytest.approx(expected_item["vector_norm"], abs=1e-6)
+    assert all(item["vector_size"] == model.config.n_embd for item in payload["feature_vectors"])
+    assert all(item["vector_norm"] > 0.0 for item in payload["feature_vectors"])
+    assert all(vector.vector.shape == (model.config.n_embd,) for vector in discovered_vectors)
