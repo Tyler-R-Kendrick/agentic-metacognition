@@ -658,7 +658,11 @@ class HybridMetaCognitionAgent:
             selected_controller_id=selected_controller.controller_id if selected_controller else None,
             fallback_used=fallback_used,
             path_context=path_context,
-            metadata={"graph_run_id": getattr(graph_run, "run_id", None)},
+            metadata=(
+                {"graph_run_id": graph_run.run_id}
+                if graph_run is not None
+                else {}
+            ),
         )
         self.memory.record_run(run)
         if graph_run is not None:

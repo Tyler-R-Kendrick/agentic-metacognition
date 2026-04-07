@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import pytest
 import torch
 
 import activation_steering as steering
@@ -163,7 +164,54 @@ def test_hybrid_agent_records_graph_state_for_path_rag_fallback():
     assert graph_store.outcomes[0][1]["verdict"].passed is True
 
 
+def test_hybrid_agent_keeps_default_empty_metadata_without_graph_store():
+    controller = steering.SteeringController(
+        controller_id="retrieval_augmented_context_v1",
+        feature_name="retrieval_augmented_context",
+        layer_idx=0,
+        vector=torch.tensor([1.0, 0.0]),
+        task_types=("qa",),
+    )
+    memory = steering.InMemorySteeringMemory([controller])
+
+    class StubExecutor:
+        def execute(self, task, plan, context, controller=None, controllers=(), max_new_tokens=80):
+            return steering.ExecutorResult(
+                prompt=task,
+                output_text="fallback answer",
+                controller_id=None,
+            )
+
+    def planner(task, memory_store):
+        return steering.PlannerDecision(task_type="qa", use_steering=False)
+
+    def verifier(task, draft, context, plan):
+        return steering.VerifierResult(passed=True, confidence=0.9)
+
+    agent = steering.HybridMetaCognitionAgent(
+        planner=planner,
+        executor=StubExecutor(),
+        verifier=verifier,
+        memory=memory,
+    )
+
+    run = agent.run("What is the capital of France?")
+
+    assert run.metadata == {}
+
+
+def test_neo4j_helpers_validate_driver_session_support():
+    with pytest.raises(ValueError, match=r"\.session"):
+        steering.Neo4jGraphStore(driver=None)
+    with pytest.raises(ValueError, match=r"\.session"):
+        steering.Neo4jPathRAGRetriever(driver=None)
+
+
 def test_neo4j_path_rag_retriever_builds_context_from_candidate_ids():
+    class StubDriver:
+        def session(self, database):
+            raise AssertionError("session should not be used because _run is overridden")
+
     class StubCandidateRetriever:
         def search(self, query_text, retriever_config):
             assert query_text == "Answer the capital question with evidence."
@@ -172,7 +220,7 @@ def test_neo4j_path_rag_retriever_builds_context_from_candidate_ids():
 
     class StubNeo4jPathRAGRetriever(steering.Neo4jPathRAGRetriever):
         def __init__(self):
-            super().__init__(driver=None, candidate_retriever=StubCandidateRetriever(), top_k=2)
+            super().__init__(driver=StubDriver(), candidate_retriever=StubCandidateRetriever(), top_k=2)
             self.calls = []
 
         def _run(self, query: str, **parameters):
@@ -212,3 +260,34 @@ def test_neo4j_path_rag_retriever_builds_context_from_candidate_ids():
     assert [path.path_id for path in context.evidence_paths] == ["evidence-1"]
     assert context.metadata["candidate_chunk_ids"] == ["chunk-1"]
     assert all(call["candidate_chunk_ids"] == ["chunk-1"] for call in retriever.calls)
+
+
+def test_neo4j_path_rag_retriever_accepts_mapping_results():
+    class StubDriver:
+        def session(self, database):
+            raise AssertionError("session should not be used because _run is overridden")
+
+    class StubCandidateRetriever:
+        def search(self, query_text, retriever_config):
+            return {"items": [{"metadata": {"chunk_id": "chunk-2"}}]}
+
+    class StubNeo4jPathRAGRetriever(steering.Neo4jPathRAGRetriever):
+        def __init__(self):
+            super().__init__(driver=StubDriver(), candidate_retriever=StubCandidateRetriever(), top_k=1)
+
+        def _run(self, query: str, **parameters):
+            return []
+
+    plan = steering.PlannerDecision(
+        task_type="qa",
+        metadata={
+            "intent_id": "intent-2",
+            "intent_text": "Answer the capital question with evidence.",
+            "subgoals": [{"subgoal_id": "sg-2", "text": "Use supported France evidence.", "order": 1}],
+            "active_subgoal_id": "sg-2",
+        },
+    )
+
+    retriever = StubNeo4jPathRAGRetriever()
+
+    assert retriever._retrieve_candidates("Answer the capital question with evidence.") == ["chunk-2"]

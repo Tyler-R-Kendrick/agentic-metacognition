@@ -36,6 +36,15 @@ def _verifier_completeness_from_issues(issues: Sequence[str]) -> float:
     return max(0.0, 1.0 - ISSUE_PENALTY_PER_ITEM * len(issues))
 
 
+def _validate_neo4j_driver(driver: Any) -> Any:
+    if driver is None:
+        raise ValueError("driver must provide a .session(...) method.")
+    session = getattr(driver, "session", None)
+    if not callable(session):
+        raise ValueError("driver must provide a .session(...) method.")
+    return driver
+
+
 @dataclass(frozen=True)
 class GraphConstraint:
     constraint_id: str
@@ -294,7 +303,7 @@ class Neo4jGraphStore:
     }
 
     def __init__(self, driver: Any, database: str = "neo4j") -> None:
-        self.driver = driver
+        self.driver = _validate_neo4j_driver(driver)
         self.database = _require_text(database, "database")
 
     def close(self) -> None:
@@ -714,7 +723,7 @@ class Neo4jPathRAGRetriever:
         analogous_query: str | None = None,
         correction_query: str | None = None,
     ) -> None:
-        self.driver = driver
+        self.driver = _validate_neo4j_driver(driver)
         self.database = _require_text(database, "database")
         self.candidate_retriever = candidate_retriever
         self.top_k = max(int(top_k), 1)
@@ -751,11 +760,22 @@ class Neo4jPathRAGRetriever:
         else:
             return []
 
-        records = getattr(raw_results, "items", None)
-        if records is None:
-            records = getattr(raw_results, "records", None)
-        if records is None:
-            records = raw_results
+        if isinstance(raw_results, Mapping):
+            records = raw_results.get("items")
+            if records is None:
+                records = raw_results.get("records")
+            if records is None:
+                records = raw_results
+        else:
+            records = getattr(raw_results, "items", None)
+            if callable(records):
+                records = None
+            if records is None:
+                records = getattr(raw_results, "records", None)
+                if callable(records):
+                    records = None
+            if records is None:
+                records = raw_results
 
         candidate_chunk_ids: list[str] = []
         for item in records or ():
