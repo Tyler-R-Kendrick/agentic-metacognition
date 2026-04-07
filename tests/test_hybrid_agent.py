@@ -382,7 +382,10 @@ def test_hybrid_meta_cognition_agent_learns_dynamic_features_and_records_graph_s
     assert run.draft.activation_trace.observed_feature_ids == [
         "interaction::question__contextual__list_response"
     ]
-    assert [feature.feature_id for feature in memory.list_dynamic_features("stub-model")] == [
+    dynamic_features = memory.list_dynamic_features("stub-model")
+    assert [feature.feature_id for feature in dynamic_features] == [
         "interaction::question__contextual__list_response"
     ]
+    assert len(dynamic_features) == 1
+    assert dynamic_features[0].observation_count == 1
     assert graph_store.states[1]["observed_features"][0].model_name == "stub-model"
