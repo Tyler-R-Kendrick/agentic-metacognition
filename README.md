@@ -1,5 +1,20 @@
-# agentic-metacognition
-Meta-layers to extract and reason about llm cognitive patterns with agents to enhance reasoning quality.
+# Agentic Meta-Cognition
+
+Meta-layers to extract and reason about LLM cognitive patterns with agents to enhance reasoning quality.
+
+The purpose of this project is to demonstrate the utility of an externalized meta-cognition layer that allows agents to reflect on and reason about their models' activations, and to self-steer, with the goal of enhancing reasoning quality.
+
+I seek to achieve this by extracting vocalized/labeled features from activation sequences obtained through agent usage. Once obtained, provenance data for the model, activations, and the steering vector are mapped to a dynamically constructed graph. The graph will then be used to augment reasoning trajectories in a reflective loop.
+
+## Potential Outcomes
+
+### Model "Theory-of-Mind"
+
+By modeling many model "features" in a graph, I hope to have the agent adapt its responses to account for the known reasoning strategies of the other models - and to better navigate the internal reasoning of models not present in the training set. Hopefully, this could reveal a common set of utility features that are independent of the models.
+
+### Self-adaptive Meta-cognition
+
+Ideally, the agent would be able to adapt its reasoning strategies to mitigate faults in its own steering behaviors. 
 
 ## Minimal activation steering demo
 
