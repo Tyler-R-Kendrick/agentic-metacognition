@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
-from pathlib import Path
+from importlib.resources import files
 from typing import Any, Mapping
 
-STANDARD_FEATURE_SPECS_PATH = Path(__file__).parent / "data" / "standard_feature_specs.json"
+STANDARD_FEATURE_SPECS_PATH = files("activation_steering").joinpath(
+    "data", "standard_feature_specs.json"
+)
 
 
 def _require_text(value: str, field_name: str) -> str:
@@ -172,9 +174,14 @@ class FeatureSpec:
 
     @classmethod
     def from_dict(cls, data: Mapping[str, Any], model_name: str | None = None) -> "FeatureSpec":
+        resolved_model_name = model_name or data.get("model_name")
+        if resolved_model_name is None or not str(resolved_model_name).strip():
+            raise ValueError(
+                "FeatureSpec.from_dict requires model_name or data['model_name']."
+            )
         return cls(
             name=str(data["name"]),
-            model_name=model_name or str(data.get("model_name", "")),
+            model_name=str(resolved_model_name),
             category=str(data["category"]),
             summary=str(data["summary"]),
             extraction_examples=list(data["extraction_examples"]),
@@ -249,9 +256,18 @@ def build_feature_spec(
 
 def load_standard_feature_catalogs() -> dict[str, FeatureCatalog]:
     """Load the file-backed starter feature catalogs keyed by model name."""
-    with STANDARD_FEATURE_SPECS_PATH.open(encoding="utf-8") as catalog_file:
-        raw_catalog = json.load(catalog_file)
+    raw_catalog = _load_standard_feature_catalog_payload()
 
+    return _build_feature_catalogs(raw_catalog)
+
+
+def _load_standard_feature_catalog_payload() -> dict[str, Any]:
+    """Read the raw starter feature catalog payload once from package data."""
+    with STANDARD_FEATURE_SPECS_PATH.open(encoding="utf-8") as catalog_file:
+        return json.load(catalog_file)
+
+
+def _build_feature_catalogs(raw_catalog: Mapping[str, Any]) -> dict[str, FeatureCatalog]:
     return {
         model_name: FeatureCatalog(
             model_name=model_name,
@@ -270,10 +286,10 @@ def get_standard_feature_models() -> list[str]:
 
 def get_standard_feature_catalog(model_name: str | None = None) -> FeatureCatalog:
     """Return the feature catalog for one model."""
-    catalogs = load_standard_feature_catalogs()
+    raw_catalog = _load_standard_feature_catalog_payload()
+    catalogs = _build_feature_catalogs(raw_catalog)
     if model_name is None:
-        with STANDARD_FEATURE_SPECS_PATH.open(encoding="utf-8") as catalog_file:
-            default_model = json.load(catalog_file)["default_model"]
+        default_model = raw_catalog["default_model"]
         return catalogs[default_model]
     try:
         return catalogs[model_name]
@@ -291,4 +307,3 @@ def get_standard_feature_specs(
     if category is None:
         return list(catalog.features)
     return [feature for feature in catalog.features if feature.category == category]
-
