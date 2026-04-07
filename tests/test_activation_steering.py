@@ -431,6 +431,44 @@ def test_generate_with_adaptive_steering_returns_string(model, tokenizer):
     assert isinstance(result, str)
 
 
+def test_decaying_activation_steerer_preserves_step_zero_for_prefill():
+    steerer = steering.DecayingActivationSteerer(
+        model=object(),
+        layer_idx=0,
+        vector=torch.tensor([1.0, 0.0]),
+        alpha=2.0,
+        decay=0.5,
+        max_steps=2,
+    )
+
+    prefill_scale = steerer.get_scale(torch.zeros(1, 4, 2))
+    first_generation_scale = steerer.get_scale(torch.zeros(1, 1, 2))
+    second_generation_scale = steerer.get_scale(torch.zeros(1, 1, 2))
+    cutoff_scale = steerer.get_scale(torch.zeros(1, 1, 2))
+
+    assert prefill_scale == pytest.approx(2.0)
+    assert first_generation_scale == pytest.approx(2.0)
+    assert second_generation_scale == pytest.approx(1.0)
+    assert cutoff_scale == pytest.approx(0.0)
+
+
+def test_generate_with_decaying_steering_returns_string(model, tokenizer):
+    result = steering.generate_with_decaying_steering(
+        TEST_PROMPTS[0],
+        model=model,
+        tokenizer=tokenizer,
+        layer_idx=1,
+        steering_vector=build_vector(model, tokenizer),
+        device="cpu",
+        alpha=1.5,
+        decay=0.5,
+        max_steps=2,
+        max_new_tokens=3,
+    )
+
+    assert isinstance(result, str)
+
+
 def test_collect_evaluation_rows_returns_expected_shape(model, tokenizer):
     probe, probe_vector = build_probe(model, tokenizer)
     rows = steering.collect_evaluation_rows(
