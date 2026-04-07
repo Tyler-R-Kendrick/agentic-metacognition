@@ -407,7 +407,8 @@ class InMemorySteeringMemory:
         key = (run.plan.task_type, run.selected_controller_id)
         stats = self._stats.setdefault(key, {"success": 0, "total": 0})
         stats["total"] += 1
-        if run.verdict.passed:
+        fallback_used = getattr(run, "fallback_used", False)
+        if run.verdict.passed and not fallback_used:
             stats["success"] += 1
 
 
