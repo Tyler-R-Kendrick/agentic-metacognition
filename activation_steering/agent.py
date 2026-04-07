@@ -417,6 +417,7 @@ class InMemorySteeringMemory:
         self._controllers: dict[str, SteeringController] = {}
         self.run_history: list[HybridAgentRun] = []
         self.activation_traces: list[ActivationTrace] = []
+        self._observed_trace_ids: set[int] = set()
         self._dynamic_features: dict[str, dict[str, ObservedInteractionFeature]] = {}
         self._stats: dict[tuple[str, str], dict[str, int]] = {}
         self.register_controllers(controllers)
@@ -438,8 +439,10 @@ class InMemorySteeringMemory:
             ) from exc
 
     def observe_interaction(self, trace: ActivationTrace) -> list[ObservedInteractionFeature]:
-        if all(existing is not trace for existing in self.activation_traces):
+        trace_id = id(trace)
+        if trace_id not in self._observed_trace_ids:
             self.activation_traces.append(trace)
+            self._observed_trace_ids.add(trace_id)
         observed_features = discover_interaction_features([trace])
         stored_features: list[ObservedInteractionFeature] = []
         for feature in observed_features:
@@ -502,9 +505,7 @@ class InMemorySteeringMemory:
 
     def record_run(self, run: HybridAgentRun) -> None:
         self.run_history.append(run)
-        if run.draft.activation_trace is not None and all(
-            existing is not run.draft.activation_trace for existing in self.activation_traces
-        ):
+        if run.draft.activation_trace is not None:
             self.observe_interaction(run.draft.activation_trace)
         if run.selected_controller_id is None:
             return

@@ -128,12 +128,15 @@ class ObservedInteractionFeature:
 
 _WORD_PATTERN = re.compile(r"[a-z][a-z0-9_]{2,}")
 _LIST_LINE_PATTERN = re.compile(r"^\s*(?:[-*]|\d+[.)])\s+", re.MULTILINE)
+_KEYWORD_STOPWORDS = frozenset(
+    {"task", "type", "reasoning", "effort", "context", "question", "answer"}
+)
 
 
 def _top_keywords(text: str, limit: int = 3) -> list[str]:
     counts: dict[str, int] = defaultdict(int)
     for token in _WORD_PATTERN.findall(text.lower()):
-        if token in {"task", "type", "reasoning", "effort", "context", "question", "answer"}:
+        if token in _KEYWORD_STOPWORDS:
             continue
         counts[token] += 1
     ranked = sorted(counts.items(), key=lambda item: (-item[1], item[0]))
