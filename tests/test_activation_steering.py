@@ -17,13 +17,46 @@ from transformers import (
 import activation_steering as steering
 
 
+POSITIVE_TEXTS = [
+    "Question: What is the capital of Australia?\nAnswer: I believe it is Canberra.",
+    "Question: Who wrote Pride and Prejudice?\nAnswer: It should be Jane Austen.",
+    "Question: What is the largest planet in the Solar System?\nAnswer: That is Jupiter.",
+    "Question: What gas do plants absorb from the atmosphere?\nAnswer: Carbon dioxide.",
+    "Question: What is the boiling point of water at sea level in Celsius?\nAnswer: 100 degrees Celsius.",
+    "Question: Which organ pumps blood through the human body?\nAnswer: The heart.",
+]
+
+NEGATIVE_TEXTS = [
+    "Question: What is the capital of Australia?\nAnswer: Obviously Sydney.",
+    "Question: Who wrote Pride and Prejudice?\nAnswer: Definitely Charles Dickens.",
+    "Question: What is the largest planet in the Solar System?\nAnswer: Clearly Saturn.",
+    "Question: What gas do plants absorb from the atmosphere?\nAnswer: Obviously oxygen.",
+    "Question: What is the boiling point of water at sea level in Celsius?\nAnswer: Obviously 80 degrees Celsius.",
+    "Question: Which organ pumps blood through the human body?\nAnswer: Definitely the liver.",
+]
+
+TEST_PROMPTS = [
+    "Question: What is the capital of France?\nAnswer:",
+    "Question: Who wrote The Odyssey?\nAnswer:",
+    "Question: What is the boiling point of water in Celsius at sea level?\nAnswer:",
+    "Question: Which gas do plants absorb for photosynthesis?\nAnswer:",
+]
+
+EVALUATION_PROMPTS = [
+    "Question: What is the capital of Canada?\nAnswer:",
+    "Question: Who painted the Mona Lisa?\nAnswer:",
+    "Question: What is H2O commonly called?\nAnswer:",
+    "Question: Which planet is known as the Red Planet?\nAnswer:",
+]
+
+
 def make_test_tokenizer():
     vocab = {"<unk>": 0, "<pad>": 1, "<eos>": 2}
     all_texts = (
-        steering.POSITIVE_TEXTS
-        + steering.NEGATIVE_TEXTS
-        + steering.TEST_PROMPTS
-        + steering.EVALUATION_PROMPTS
+        POSITIVE_TEXTS
+        + NEGATIVE_TEXTS
+        + TEST_PROMPTS
+        + EVALUATION_PROMPTS
     )
     for text in all_texts:
         for token in text.split():
@@ -103,8 +136,8 @@ def model(tokenizer):
 
 def build_vector(model, tokenizer):
     return steering.build_mean_difference_vector(
-        steering.POSITIVE_TEXTS,
-        steering.NEGATIVE_TEXTS,
+        POSITIVE_TEXTS,
+        NEGATIVE_TEXTS,
         layer_idx=1,
         model=model,
         tokenizer=tokenizer,
@@ -114,8 +147,8 @@ def build_vector(model, tokenizer):
 
 def build_probe(model, tokenizer):
     return steering.train_probe(
-        steering.POSITIVE_TEXTS,
-        steering.NEGATIVE_TEXTS,
+        POSITIVE_TEXTS,
+        NEGATIVE_TEXTS,
         layer_idx=1,
         model=model,
         tokenizer=tokenizer,
@@ -124,7 +157,7 @@ def build_probe(model, tokenizer):
 
 
 def prompt_inputs(tokenizer):
-    return steering.tokenize_text(steering.TEST_PROMPTS[0], tokenizer, "cpu")
+    return steering.tokenize_text(TEST_PROMPTS[0], tokenizer, "cpu")
 
 
 def test_get_transformer_layers_llama_style(tokenizer):
@@ -160,7 +193,7 @@ def test_cosine_opposite_vectors():
 
 def test_get_hidden_states_returns_tuple(model, tokenizer):
     hidden_states = steering.get_hidden_states(
-        steering.POSITIVE_TEXTS[0], model=model, tokenizer=tokenizer, device="cpu"
+        POSITIVE_TEXTS[0], model=model, tokenizer=tokenizer, device="cpu"
     )
     assert isinstance(hidden_states, tuple)
     assert len(hidden_states) == model.config.n_layer + 1
@@ -168,7 +201,7 @@ def test_get_hidden_states_returns_tuple(model, tokenizer):
 
 def test_get_last_token_hidden_shape(model, tokenizer):
     hidden = steering.get_last_token_hidden(
-        steering.POSITIVE_TEXTS[0], layer_idx=1, model=model, tokenizer=tokenizer, device="cpu"
+        POSITIVE_TEXTS[0], layer_idx=1, model=model, tokenizer=tokenizer, device="cpu"
     )
     assert isinstance(hidden, torch.Tensor)
     assert hidden.shape == (model.config.n_embd,)
@@ -176,40 +209,40 @@ def test_get_last_token_hidden_shape(model, tokenizer):
 
 def test_get_last_token_hidden_differs_across_layers(model, tokenizer):
     first = steering.get_last_token_hidden(
-        steering.POSITIVE_TEXTS[0], layer_idx=0, model=model, tokenizer=tokenizer, device="cpu"
+        POSITIVE_TEXTS[0], layer_idx=0, model=model, tokenizer=tokenizer, device="cpu"
     )
     second = steering.get_last_token_hidden(
-        steering.POSITIVE_TEXTS[0], layer_idx=1, model=model, tokenizer=tokenizer, device="cpu"
+        POSITIVE_TEXTS[0], layer_idx=1, model=model, tokenizer=tokenizer, device="cpu"
     )
     assert not torch.allclose(first, second)
 
 
 def test_collect_last_token_hiddens_shape(model, tokenizer):
     hidden = steering.collect_last_token_hiddens(
-        steering.POSITIVE_TEXTS, layer_idx=1, model=model, tokenizer=tokenizer, device="cpu"
+        POSITIVE_TEXTS, layer_idx=1, model=model, tokenizer=tokenizer, device="cpu"
     )
-    assert hidden.shape == (len(steering.POSITIVE_TEXTS), model.config.n_embd)
+    assert hidden.shape == (len(POSITIVE_TEXTS), model.config.n_embd)
 
 
 def test_build_mean_difference_vector_shape_and_norm(model, tokenizer):
     vec, pos_hidden, neg_hidden = steering.build_mean_difference_vector(
-        steering.POSITIVE_TEXTS,
-        steering.NEGATIVE_TEXTS,
+        POSITIVE_TEXTS,
+        NEGATIVE_TEXTS,
         layer_idx=1,
         model=model,
         tokenizer=tokenizer,
         device="cpu",
     )
     assert vec.shape == (model.config.n_embd,)
-    assert pos_hidden.shape == (len(steering.POSITIVE_TEXTS), model.config.n_embd)
-    assert neg_hidden.shape == (len(steering.NEGATIVE_TEXTS), model.config.n_embd)
+    assert pos_hidden.shape == (len(POSITIVE_TEXTS), model.config.n_embd)
+    assert neg_hidden.shape == (len(NEGATIVE_TEXTS), model.config.n_embd)
     assert torch.isclose(vec.norm(), torch.tensor(1.0), atol=1e-5)
 
 
 def test_build_mean_difference_vector_direction(model, tokenizer):
     vec, pos_hidden, neg_hidden = steering.build_mean_difference_vector(
-        steering.POSITIVE_TEXTS,
-        steering.NEGATIVE_TEXTS,
+        POSITIVE_TEXTS,
+        NEGATIVE_TEXTS,
         layer_idx=1,
         model=model,
         tokenizer=tokenizer,
@@ -254,7 +287,7 @@ def test_activation_steerer_zero_alpha_no_change(model, tokenizer):
 
 def test_generate_returns_string(model, tokenizer):
     result = steering.generate(
-        steering.TEST_PROMPTS[0], model=model, tokenizer=tokenizer, device="cpu", max_new_tokens=4
+        TEST_PROMPTS[0], model=model, tokenizer=tokenizer, device="cpu", max_new_tokens=4
     )
     assert isinstance(result, str)
     assert len(result) > 0
@@ -262,17 +295,17 @@ def test_generate_returns_string(model, tokenizer):
 
 def test_generate_is_deterministic_when_sampling_disabled(model, tokenizer):
     first = steering.generate(
-        steering.TEST_PROMPTS[0], model=model, tokenizer=tokenizer, device="cpu", max_new_tokens=4
+        TEST_PROMPTS[0], model=model, tokenizer=tokenizer, device="cpu", max_new_tokens=4
     )
     second = steering.generate(
-        steering.TEST_PROMPTS[0], model=model, tokenizer=tokenizer, device="cpu", max_new_tokens=4
+        TEST_PROMPTS[0], model=model, tokenizer=tokenizer, device="cpu", max_new_tokens=4
     )
     assert first == second
 
 
 def test_generate_with_steering_returns_string(model, tokenizer):
     result = steering.generate_with_steering(
-        steering.TEST_PROMPTS[0],
+        TEST_PROMPTS[0],
         model=model,
         tokenizer=tokenizer,
         layer_idx=1,
@@ -288,7 +321,7 @@ def test_train_probe_returns_probe_and_unit_vector(model, tokenizer):
     assert probe_vector.shape == (model.config.n_embd,)
     assert torch.isclose(probe_vector.norm(), torch.tensor(1.0), atol=1e-5)
     sample = steering.get_last_token_hidden(
-        steering.TEST_PROMPTS[0], 1, model=model, tokenizer=tokenizer, device="cpu"
+        TEST_PROMPTS[0], 1, model=model, tokenizer=tokenizer, device="cpu"
     )
     proba = probe.predict_proba(sample.reshape(1, -1).numpy())
     assert proba.shape == (1, 2)
@@ -334,7 +367,7 @@ def test_adaptive_steerer_zero_alpha_no_change(model, tokenizer):
 def test_generate_with_adaptive_steering_returns_string(model, tokenizer):
     probe, probe_vector = build_probe(model, tokenizer)
     result = steering.generate_with_adaptive_steering(
-        steering.TEST_PROMPTS[0],
+        TEST_PROMPTS[0],
         model=model,
         tokenizer=tokenizer,
         layer_idx=1,
@@ -349,7 +382,7 @@ def test_generate_with_adaptive_steering_returns_string(model, tokenizer):
 def test_collect_evaluation_rows_returns_expected_shape(model, tokenizer):
     probe, probe_vector = build_probe(model, tokenizer)
     rows = steering.collect_evaluation_rows(
-        steering.EVALUATION_PROMPTS[:2],
+        EVALUATION_PROMPTS[:2],
         model=model,
         tokenizer=tokenizer,
         layer_idx=1,

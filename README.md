@@ -3,7 +3,7 @@ Meta-layers to extract and reason about llm cognitive patterns with agents to en
 
 ## Minimal activation steering demo
 
-This repo includes `activation_steering.py`, a small Hugging Face–based example of:
+This repo includes an `activation_steering` Python package with reusable Hugging Face–based helpers for:
 
 - collecting hidden states from one decoder block
 - building a mean-difference steering vector
@@ -23,14 +23,8 @@ Jupyter extensions and installs the repo requirements plus `ipykernel`.
 
 ### Notebook example
 
-Open `notebooks/minimal_activation_steering.ipynb` to run a minimal notebook
-example that imports `activation_steering.py` and uses the existing steering
-helpers directly instead of re-implementing them in notebook cells.
+Open `notebooks/minimal_activation_steering.ipynb` to run the minimal end-to-end use case. The notebook defines its own sample prompts and imports the shared `activation_steering` library helpers directly.
 
-### Run
+### Use
 
-```bash
-python activation_steering.py
-```
-
-By default it uses `Qwen/Qwen2.5-0.5B-Instruct` and prints baseline vs. steered generations plus a tiny evaluation table.
+Use the notebook for the minimal example, or import the package from Python applications that want to build vectors, attach steering hooks, and run steered generation.
