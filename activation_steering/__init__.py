@@ -6,6 +6,12 @@ from .catalog import (
     get_standard_activations,
     load_standard_activation_catalog,
 )
+from .discovery import (
+    DiscoveredFeatureVector,
+    discover_and_store_feature_vectors,
+    discover_feature_vectors,
+    save_discovered_feature_vectors,
+)
 from .evaluation import collect_evaluation_rows
 from .features import (
     STANDARD_FEATURE_SPECS_PATH,
@@ -55,6 +61,9 @@ __all__ = [
     "collect_evaluation_rows",
     "collect_last_token_hiddens",
     "cosine",
+    "discover_and_store_feature_vectors",
+    "discover_feature_vectors",
+    "DiscoveredFeatureVector",
     "EvaluationCriterion",
     "FeatureCatalog",
     "FeatureExample",
@@ -76,6 +85,7 @@ __all__ = [
     "load_standard_activation_catalog",
     "load_standard_feature_catalogs",
     "load_model_and_tokenizer",
+    "save_discovered_feature_vectors",
     "tokenize_text",
     "train_probe",
 ]

@@ -42,6 +42,10 @@ Jupyter extensions and installs the repo requirements plus `ipykernel`.
 
 Open `notebooks/minimal_activation_steering.ipynb` to run the minimal end-to-end use case. The notebook defines its own sample prompts and imports the shared `activation_steering` library helpers directly.
 
+### Inspiration
+
+This minimal activation-steering workflow was inspired in part by *Adaptive Activation Steering: A Tuning-Free LLM Truthfulness Improvement Method for Diverse Hallucinations Categories* (Wang et al.), available at https://arxiv.org/html/2406.00034v1.
+
 ### Use
 
 Use the notebook for the minimal example, or import the package from Python applications that run from the repository root (or with `PYTHONPATH` pointed at the repo) to build vectors, attach steering hooks, and run steered generation.
@@ -53,3 +57,7 @@ The package includes a persistent JSON catalog of starter activations for a sing
 ### Feature specification API
 
 The package also includes reusable Python modules for defining features to extract. Use `FeatureSpec`, `FeatureExample`, and `EvaluationCriterion` directly in Python, or load starter file-backed specs with `activation_steering.get_standard_feature_catalog()` / `activation_steering.get_standard_feature_specs()`.
+
+### Feature discovery and storage
+
+Use `activation_steering.discover_feature_vectors(...)` to build one steering vector per feature spec from its labeled extraction examples, then persist the results with `activation_steering.save_discovered_feature_vectors(...)` or `activation_steering.discover_and_store_feature_vectors(...)`.

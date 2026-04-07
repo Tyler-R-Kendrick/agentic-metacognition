@@ -1,3 +1,5 @@
+import json
+
 import numpy as np
 import pytest
 import torch
@@ -604,3 +606,29 @@ def test_feature_catalog_rejects_duplicate_feature_names():
                 ),
             ],
         )
+
+
+def test_discover_and_store_feature_vectors_runs_minimal_flow(tokenizer, tmp_path):
+    model = make_gpt2_model(tokenizer)
+    feature_specs = steering.get_standard_feature_specs()[:2]
+    output_path = tmp_path / "identified_feature_vectors.json"
+
+    discovered_vectors = steering.discover_and_store_feature_vectors(
+        feature_specs=feature_specs,
+        layer_idx=1,
+        model=model,
+        tokenizer=tokenizer,
+        device="cpu",
+        output_path=output_path,
+    )
+
+    assert output_path.is_file()
+    payload = json.loads(output_path.read_text(encoding="utf-8"))
+    assert payload["feature_vector_count"] == 2
+    assert len(discovered_vectors) == 2
+    assert {item["name"] for item in payload["feature_vectors"]} == {
+        feature_spec.name for feature_spec in feature_specs
+    }
+    assert all(item["vector_size"] == model.config.n_embd for item in payload["feature_vectors"])
+    assert all(item["vector_norm"] > 0.0 for item in payload["feature_vectors"])
+    assert all(vector.vector.shape == (model.config.n_embd,) for vector in discovered_vectors)
