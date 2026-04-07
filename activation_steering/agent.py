@@ -868,7 +868,7 @@ def _write_graph_visualization_artifact(path: Path, graph_payload: Mapping[str, 
     if not graph.nodes:
         path.write_text(
             (
-                '<svg xmlns="http://www.w3.org/2000/svg" width="960" height="200">'
+                f'<svg xmlns="http://www.w3.org/2000/svg" width="{SVG_MIN_WIDTH}" height="200">'
                 '<rect width="100%" height="100%" fill="#f8fafc" />'
                 '<text x="480" y="100" text-anchor="middle" font-size="18" '
                 'font-family="Arial, sans-serif" fill="#0f172a">No graph state recorded.</text>'
@@ -994,13 +994,14 @@ class HybridMetaCognitionAgent:
         destination = self.artifact_dir if artifact_dir is None else Path(artifact_dir)
         close_graph_store = getattr(self.graph_store, "close", None)
         persistence_error = None
+        artifacts = None
         try:
             if destination is None:
                 return None
             destination.mkdir(parents=True, exist_ok=True)
             runtime_discoveries = _build_runtime_discoveries_payload(self.memory)
             graph_payload = _build_runtime_graph_payload(self.memory.run_history)
-            return {
+            artifacts = {
                 "adaptive_discoveries": _write_json_artifact(
                     destination / "adaptive_discoveries.json",
                     runtime_discoveries,
@@ -1013,15 +1014,16 @@ class HybridMetaCognitionAgent:
             }
         except Exception as exc:
             persistence_error = exc
-            raise
-        finally:
-            if callable(close_graph_store):
-                try:
-                    close_graph_store()
-                except Exception:
-                    # Preserve the original artifact persistence failure if cleanup also fails.
-                    if persistence_error is None:
-                        raise
+        if callable(close_graph_store):
+            try:
+                close_graph_store()
+            except Exception as close_exc:
+                if persistence_error is None:
+                    raise
+                raise persistence_error from close_exc
+        if persistence_error is not None:
+            raise persistence_error
+        return artifacts
 
     def close(self) -> dict[str, Path] | None:
         return self.persist_artifacts()
