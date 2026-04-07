@@ -9,6 +9,7 @@ from typing import Any, Mapping
 STANDARD_FEATURE_SPECS_PATH = files("activation_steering").joinpath(
     "data", "standard_feature_specs.json"
 )
+STANDARD_FEATURE_CATALOG_PATH = STANDARD_FEATURE_SPECS_PATH
 
 
 def _require_text(value: str, field_name: str) -> str:

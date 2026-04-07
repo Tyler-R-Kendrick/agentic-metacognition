@@ -1,6 +1,7 @@
 """Reusable activation steering helpers for decoder-only Hugging Face models."""
 
 from .catalog import (
+    STANDARD_ACTIVATION_CATALOG_PATH,
     STANDARD_ACTIVATIONS_PATH,
     get_standard_activation_models,
     get_standard_activations,
@@ -14,6 +15,7 @@ from .discovery import (
 )
 from .evaluation import collect_evaluation_rows
 from .features import (
+    STANDARD_FEATURE_CATALOG_PATH,
     STANDARD_FEATURE_SPECS_PATH,
     EvaluationCriterion,
     FeatureCatalog,
@@ -54,20 +56,22 @@ __all__ = [
     "AdaptiveActivationSteerer",
     "DEFAULT_DO_SAMPLE",
     "DEFAULT_MAX_NEW_TOKENS",
-    "STANDARD_ACTIVATIONS_PATH",
-    "STANDARD_FEATURE_SPECS_PATH",
-    "build_mean_difference_vector",
-    "build_feature_spec",
-    "collect_evaluation_rows",
-    "collect_last_token_hiddens",
-    "cosine",
-    "discover_and_store_feature_vectors",
-    "discover_feature_vectors",
     "DiscoveredFeatureVector",
     "EvaluationCriterion",
     "FeatureCatalog",
     "FeatureExample",
     "FeatureSpec",
+    "STANDARD_ACTIVATION_CATALOG_PATH",
+    "STANDARD_ACTIVATIONS_PATH",
+    "STANDARD_FEATURE_CATALOG_PATH",
+    "STANDARD_FEATURE_SPECS_PATH",
+    "build_feature_spec",
+    "build_mean_difference_vector",
+    "collect_evaluation_rows",
+    "collect_last_token_hiddens",
+    "cosine",
+    "discover_and_store_feature_vectors",
+    "discover_feature_vectors",
     "generate",
     "generate_with_adaptive_steering",
     "generate_with_steering",

@@ -14,6 +14,7 @@ class ActivationEntry(TypedDict):
 STANDARD_ACTIVATIONS_PATH = files("activation_steering").joinpath(
     "data", "standard_activations.json"
 )
+STANDARD_ACTIVATION_CATALOG_PATH = STANDARD_ACTIVATIONS_PATH
 
 
 @lru_cache(maxsize=1)

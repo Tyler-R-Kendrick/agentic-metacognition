@@ -54,7 +54,12 @@ class DiscoveredFeatureVector:
     metadata: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
-        self.vector = torch.as_tensor(self.vector, dtype=torch.float32).detach().cpu()
+        vector = torch.as_tensor(self.vector, dtype=torch.float32)
+        if vector.requires_grad:
+            vector = vector.detach()
+        if vector.device.type != "cpu":
+            vector = vector.cpu()
+        self.vector = vector
         self.metadata = dict(self.metadata)
 
     def to_dict(self) -> dict[str, Any]:
