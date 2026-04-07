@@ -214,16 +214,17 @@ def collect_controller_trace(
     """Score the prompt hidden state against persisted steering vectors."""
     if not controllers:
         return None
+    layer_indices = {controller.layer_idx for controller in controllers}
+    if len(layer_indices) != 1:
+        raise ValueError(
+            "collect_controller_trace() requires all controllers to target the same layer; "
+            f"received layers: {sorted(layer_indices)}"
+        )
     layer_idx = controllers[0].layer_idx
     hidden = get_last_token_hidden(prompt, layer_idx, model, tokenizer, device)
     scores = []
     skipped_controllers = []
     for controller in controllers:
-        if controller.layer_idx != layer_idx:
-            skipped_controllers.append(
-                {"controller_id": controller.controller_id, "reason": "layer_mismatch"}
-            )
-            continue
         if controller.vector.shape != hidden.shape:
             skipped_controllers.append(
                 {
