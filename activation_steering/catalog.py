@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-STANDARD_ACTIVATIONS_PATH = Path(__file__).with_name("data").joinpath("standard_activations.json")
+STANDARD_ACTIVATIONS_PATH = Path(__file__).parent / "data" / "standard_activations.json"
 
 
 def load_standard_activation_catalog() -> dict:

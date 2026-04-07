@@ -454,7 +454,7 @@ def test_load_standard_activation_catalog_reads_file_backed_data():
 def test_get_standard_activations_returns_default_model_entries():
     activations = steering.get_standard_activations()
     categories = {activation["category"] for activation in activations}
-    assert len(activations) >= 4
+    assert len(activations) == 11
     assert {
         "prompt_engineering",
         "context_engineering",
