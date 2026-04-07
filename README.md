@@ -75,3 +75,14 @@ The repository also keeps a checked-in minimal-example artifact in source contro
 ### Hybrid agent library
 
 Use `HybridMetaCognitionAgent`, `SteeredExecutor`, `InMemorySteeringMemory`, and `load_steering_controllers(...)` to build a reusable hybrid agent where a planner decides when to retrieve context and which persisted controller to apply before the verifier judges the result.
+
+### Neo4j PathRAG / GraphRAG extension
+
+The hybrid-agent library now also includes additive graph-native helpers for Neo4j-backed reasoning trajectories:
+
+- `GraphTaskPlan`, `GraphConstraint`, and `GraphSubgoal` to anchor tasks, intents, constraints, and ordered subgoals
+- `RetrievedPath` and `PathRAGContext` to keep evidence paths, analogous prior paths, and correction paths separated during retrieval
+- `Neo4jPathRAGRetriever` to combine Neo4j candidate retrieval with Cypher path expansion
+- `Neo4jGraphStore` to persist task/run/state/verifier/outcome nodes plus fallback-triggered drift corrections without replacing the existing in-memory steering memory
+
+This extension is intentionally minimal and keeps the existing planner/retriever/executor/verifier loop intact. It is designed to pair with Neo4j's official Python ecosystem, including the `neo4j` driver and `neo4j-graphrag` retrievers, instead of introducing a separate graph framework.
