@@ -158,6 +158,7 @@ class HybridAgentRun:
     verdict: VerifierResult
     selected_controller_id: str | None
     fallback_used: bool = False
+    path_context: Any | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
@@ -458,7 +459,7 @@ class PlannerProtocol(Protocol):
 
 
 class RetrieverProtocol(Protocol):
-    def retrieve(self, task: str, plan: PlannerDecision) -> Sequence[str]: ...
+    def retrieve(self, task: str, plan: PlannerDecision) -> Any: ...
 
 
 class ToolRouterProtocol(Protocol):
@@ -479,13 +480,29 @@ def _call_component(
     component: Any,
     method_name: str,
     *args: Any,
+    **kwargs: Any,
 ) -> Any:
     method = getattr(component, method_name, None)
     if callable(method):
-        return method(*args)
+        return method(*args, **kwargs)
     if callable(component):
-        return component(*args)
+        return component(*args, **kwargs)
     raise TypeError(f"Component must be callable or provide a .{method_name}(...) method.")
+
+
+def _coerce_context_payload(payload: Any) -> tuple[list[str], Any | None]:
+    if payload is None:
+        return [], None
+    to_prompt_sections = getattr(payload, "to_prompt_sections", None)
+    if callable(to_prompt_sections):
+        return [str(section) for section in to_prompt_sections()], payload
+    if isinstance(payload, str):
+        return [payload], None
+    return [str(item) for item in payload], None
+
+
+def _drift_score_from_verifier(verdict: VerifierResult) -> float:
+    return max(0.0, 1.0 - float(verdict.confidence))
 
 
 class HybridMetaCognitionAgent:
@@ -504,6 +521,7 @@ class HybridMetaCognitionAgent:
         tool_router: ToolRouterProtocol
         | Callable[[str, PlannerDecision, Sequence[str]], Sequence[str]]
         | None = None,
+        graph_store: Any | None = None,
         max_new_tokens: int = DEFAULT_MAX_NEW_TOKENS,
     ) -> None:
         self.planner = planner
@@ -512,15 +530,32 @@ class HybridMetaCognitionAgent:
         self.executor = executor
         self.verifier = verifier
         self.memory = memory
+        self.graph_store = graph_store
         self.max_new_tokens = max_new_tokens
 
     def run(self, task: str) -> HybridAgentRun:
         normalized_task = _require_text(task, "task")
         plan = _call_component(self.planner, "plan", normalized_task, self.memory)
+        graph_run = None
+        if self.graph_store is not None:
+            graph_run = _call_component(self.graph_store, "start_run", normalized_task, plan)
         context: list[str] = []
+        path_context = None
         if plan.needs_retrieval and self.retriever is not None:
             retrieved = _call_component(self.retriever, "retrieve", normalized_task, plan) or ()
-            context.extend(str(item) for item in retrieved)
+            rendered_context, path_context = _coerce_context_payload(retrieved)
+            context.extend(rendered_context)
+            if graph_run is not None:
+                _call_component(
+                    self.graph_store,
+                    "record_state",
+                    graph_run,
+                    step=1,
+                    text="Retrieved graph-native context" if path_context is not None else "Retrieved context",
+                    state_type="retrieval",
+                    path_context=path_context,
+                    metadata={"task_type": plan.task_type},
+                )
         if self.tool_router is not None:
             tool_outputs = _call_component(self.tool_router, "route", normalized_task, plan, context) or ()
             context.extend(str(item) for item in tool_outputs)
@@ -540,10 +575,47 @@ class HybridMetaCognitionAgent:
             controllers=self.memory.list_controllers(),
             max_new_tokens=self.max_new_tokens,
         )
+        draft_state_id = None
+        if graph_run is not None:
+            draft_state_id = _call_component(
+                self.graph_store,
+                "record_state",
+                graph_run,
+                step=2,
+                text=draft.output_text,
+                state_type="draft",
+                path_context=path_context,
+                metadata={
+                    "prompt": draft.prompt,
+                    "controller_id": draft.controller_id,
+                },
+            )
         verdict = _call_component(self.verifier, "verify", normalized_task, draft, context, plan)
+        if graph_run is not None and draft_state_id is not None:
+            _call_component(
+                self.graph_store,
+                "record_verifier_result",
+                graph_run,
+                state_id=draft_state_id,
+                verdict=verdict,
+            )
         fallback_used = False
 
         if selected_controller is not None and plan.allow_fallback and not verdict.passed:
+            if graph_run is not None and draft_state_id is not None:
+                _call_component(
+                    self.graph_store,
+                    "record_drift_and_correction",
+                    graph_run,
+                    state_id=draft_state_id,
+                    step=2,
+                    drift_kind="verifier_rejected_steered_draft",
+                    score=_drift_score_from_verifier(verdict),
+                    description="Verifier rejected the steered draft, so the agent re-anchored with an unsteered fallback.",
+                    correction_kind="fallback",
+                    action="fallback_to_unsteered_execution",
+                    outcome="retrying_without_steering",
+                )
             draft = self.executor.execute(
                 normalized_task,
                 plan,
@@ -552,7 +624,29 @@ class HybridMetaCognitionAgent:
                 controllers=self.memory.list_controllers(),
                 max_new_tokens=self.max_new_tokens,
             )
+            if graph_run is not None:
+                draft_state_id = _call_component(
+                    self.graph_store,
+                    "record_state",
+                    graph_run,
+                    step=3,
+                    text=draft.output_text,
+                    state_type="corrected_draft",
+                    path_context=path_context,
+                    metadata={
+                        "prompt": draft.prompt,
+                        "controller_id": draft.controller_id,
+                    },
+                )
             verdict = _call_component(self.verifier, "verify", normalized_task, draft, context, plan)
+            if graph_run is not None and draft_state_id is not None:
+                _call_component(
+                    self.graph_store,
+                    "record_verifier_result",
+                    graph_run,
+                    state_id=draft_state_id,
+                    verdict=verdict,
+                )
             fallback_used = True
 
         run = HybridAgentRun(
@@ -563,6 +657,21 @@ class HybridMetaCognitionAgent:
             verdict=verdict,
             selected_controller_id=selected_controller.controller_id if selected_controller else None,
             fallback_used=fallback_used,
+            path_context=path_context,
+            metadata=(
+                {"graph_run_id": graph_run.run_id}
+                if graph_run is not None
+                else {}
+            ),
         )
         self.memory.record_run(run)
+        if graph_run is not None:
+            _call_component(
+                self.graph_store,
+                "record_outcome",
+                graph_run,
+                verdict=verdict,
+                fallback_used=fallback_used,
+                notes="; ".join(verdict.issues) if verdict.issues else None,
+            )
         return run
