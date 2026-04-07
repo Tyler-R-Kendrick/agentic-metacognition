@@ -418,7 +418,7 @@ class InMemorySteeringMemory:
         self._controllers: dict[str, SteeringController] = {}
         self.run_history: list[HybridAgentRun] = []
         self.activation_traces: list[ActivationTrace] = []
-        self._observed_trace_ids: set[int] = set()
+        self._observed_trace_ids: set[str] = set()
         self._dynamic_features: dict[str, dict[str, ObservedInteractionFeature]] = {}
         self._stats: dict[tuple[str, str], dict[str, int]] = {}
         self.register_controllers(controllers)
