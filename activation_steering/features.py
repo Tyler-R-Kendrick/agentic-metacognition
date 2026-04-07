@@ -184,6 +184,7 @@ class FeatureSpec:
 
     @classmethod
     def from_dict(cls, data: Mapping[str, Any], model_name: str | None = None) -> "FeatureSpec":
+        """Build a FeatureSpec from a mapping; explicit model_name overrides data['model_name']."""
         resolved_model_name = model_name or data.get("model_name")
         if resolved_model_name is None or not str(resolved_model_name).strip():
             raise ValueError(
@@ -220,6 +221,9 @@ class FeatureCatalog:
             for feature in self.features
         ]
         self.metadata = _coerce_metadata(self.metadata)
+        feature_names = [feature.name for feature in self.features]
+        if len(feature_names) != len(set(feature_names)):
+            raise ValueError("features must not contain duplicate feature names.")
         self._feature_by_name = {feature.name: feature for feature in self.features}
 
     def get_feature(self, feature_name: str) -> FeatureSpec:

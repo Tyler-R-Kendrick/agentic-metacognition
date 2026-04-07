@@ -516,8 +516,26 @@ def test_build_feature_spec_validates_and_filters_texts():
     assert spec.get_extraction_texts(label="positive") == ["2 + 2 = 4 with steps"]
     assert spec.get_extraction_texts(label="negative") == ["2 + 2 = 4"]
     assert spec.get_test_case_texts() == ["What is 7 + 5?"]
-    assert spec.get_test_texts() == ["What is 7 + 5?"]
     assert spec.metadata == {"owner": "tests"}
+
+
+def test_feature_spec_get_test_texts_alias_matches_get_test_case_texts():
+    spec = steering.build_feature_spec(
+        name="alias_check",
+        model_name="gpt2",
+        category="reasoning_strategy",
+        summary="Verify backward-compatible alias behavior.",
+        extraction_examples=[
+            {"text": "Worked answer", "label": "positive"},
+        ],
+        test_cases=[
+            {"text": "New question", "label": "requires_reasoning"},
+        ],
+        evaluation_criteria=[
+            {"name": "criterion", "description": "Check alias behavior."},
+        ],
+    )
+    assert spec.get_test_texts() == spec.get_test_case_texts()
 
 
 def test_feature_spec_requires_test_cases():
@@ -555,3 +573,34 @@ def test_get_standard_feature_specs_filters_by_category():
 def test_get_standard_feature_catalog_rejects_unknown_model():
     with pytest.raises(ValueError, match="Unknown model_name"):
         steering.get_standard_feature_catalog(model_name="unknown-model")
+
+
+def test_feature_catalog_rejects_duplicate_feature_names():
+    with pytest.raises(ValueError, match="duplicate feature names"):
+        steering.FeatureCatalog(
+            model_name="gpt2",
+            features=[
+                steering.build_feature_spec(
+                    name="duplicate",
+                    model_name="gpt2",
+                    category="reasoning_strategy",
+                    summary="First feature.",
+                    extraction_examples=[{"text": "a", "label": "positive"}],
+                    test_cases=[{"text": "b", "label": "test"}],
+                    evaluation_criteria=[
+                        {"name": "criterion_one", "description": "desc"},
+                    ],
+                ),
+                steering.build_feature_spec(
+                    name="duplicate",
+                    model_name="gpt2",
+                    category="reasoning_strategy",
+                    summary="Second feature.",
+                    extraction_examples=[{"text": "c", "label": "positive"}],
+                    test_cases=[{"text": "d", "label": "test"}],
+                    evaluation_criteria=[
+                        {"name": "criterion_two", "description": "desc"},
+                    ],
+                ),
+            ],
+        )
