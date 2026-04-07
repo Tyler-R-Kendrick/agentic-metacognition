@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import re
+from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterable
@@ -78,6 +80,159 @@ class DiscoveredFeatureVector:
             "evaluation_criteria": list(self.evaluation_criteria),
             "metadata": dict(self.metadata),
         }
+
+
+@dataclass
+class ObservedInteractionFeature:
+    """A lightweight feature learned from observed prompt/output interaction patterns."""
+
+    feature_id: str
+    model_name: str
+    category: str
+    summary: str
+    input_example: str
+    output_example: str
+    observation_count: int = 1
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        self.feature_id = str(self.feature_id).strip()
+        self.model_name = str(self.model_name).strip()
+        self.category = str(self.category).strip()
+        self.summary = str(self.summary).strip()
+        self.input_example = str(self.input_example)
+        self.output_example = str(self.output_example)
+        self.observation_count = max(int(self.observation_count), 1)
+        self.metadata = dict(self.metadata)
+        if not self.feature_id:
+            raise ValueError("feature_id must be a non-empty string.")
+        if not self.model_name:
+            raise ValueError("model_name must be a non-empty string.")
+        if not self.category:
+            raise ValueError("category must be a non-empty string.")
+        if not self.summary:
+            raise ValueError("summary must be a non-empty string.")
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "feature_id": self.feature_id,
+            "model_name": self.model_name,
+            "category": self.category,
+            "summary": self.summary,
+            "input_example": self.input_example,
+            "output_example": self.output_example,
+            "observation_count": self.observation_count,
+            "metadata": dict(self.metadata),
+        }
+
+
+_WORD_PATTERN = re.compile(r"[a-z][a-z0-9_]{2,}")
+_LIST_LINE_PATTERN = re.compile(r"^\s*(?:[-*]|\d+[.)])\s+", re.MULTILINE)
+
+
+def _top_keywords(text: str, limit: int = 3) -> list[str]:
+    counts: dict[str, int] = defaultdict(int)
+    for token in _WORD_PATTERN.findall(text.lower()):
+        if token in {"task", "type", "reasoning", "effort", "context", "question", "answer"}:
+            continue
+        counts[token] += 1
+    ranked = sorted(counts.items(), key=lambda item: (-item[1], item[0]))
+    return [token for token, _ in ranked[:limit]]
+
+
+def _classify_prompt_shape(prompt: str) -> str:
+    prompt_lower = prompt.lower()
+    if "?" in prompt_lower:
+        return "question"
+    if "summar" in prompt_lower or "explain" in prompt_lower:
+        return "explanation_request"
+    if "code" in prompt_lower or "function" in prompt_lower:
+        return "code_request"
+    return "instruction"
+
+
+def _classify_context_usage(prompt: str) -> str:
+    prompt_lower = prompt.lower()
+    if any(
+        marker in prompt_lower
+        for marker in ("context:", "evidence:", "current_intent", "active_subgoal", "retrieved")
+    ):
+        return "contextual"
+    return "direct"
+
+
+def _classify_output_shape(output_text: str) -> str:
+    output_lower = output_text.lower()
+    if _LIST_LINE_PATTERN.search(output_text):
+        return "list_response"
+    if "```" in output_text:
+        return "code_response"
+    if any(marker in output_lower for marker in ("because", "therefore", "first,", "second,")):
+        return "reasoned_response"
+    return "direct_response"
+
+
+def discover_interaction_features(interactions: Iterable[Any]) -> list[ObservedInteractionFeature]:
+    """Learn per-model interaction-pattern features from observed prompt/output pairs."""
+    grouped: dict[tuple[str, str], dict[str, Any]] = {}
+    for interaction in interactions:
+        model_name = str(getattr(interaction, "model_name", "") or "").strip()
+        prompt = str(getattr(interaction, "prompt", "") or "")
+        output_text = str(getattr(interaction, "output_text", "") or "")
+        if not model_name or not prompt or not output_text:
+            continue
+        prompt_shape = _classify_prompt_shape(prompt)
+        context_usage = _classify_context_usage(prompt)
+        output_shape = _classify_output_shape(output_text)
+        prompt_keywords = _top_keywords(prompt)
+        output_keywords = _top_keywords(output_text)
+        signature = "__".join((prompt_shape, context_usage, output_shape))
+        grouped_key = (model_name, signature)
+        if grouped_key not in grouped:
+            grouped[grouped_key] = {
+                "count": 0,
+                "prompt": prompt,
+                "output_text": output_text,
+                "prompt_shape": prompt_shape,
+                "context_usage": context_usage,
+                "output_shape": output_shape,
+                "prompt_keywords": prompt_keywords,
+                "output_keywords": output_keywords,
+            }
+        grouped[grouped_key]["count"] += 1
+    learned_features = []
+    for (model_name, signature), payload in sorted(grouped.items()):
+        prompt_keywords = payload["prompt_keywords"]
+        output_keywords = payload["output_keywords"]
+        summary_parts = [
+            f"Observed {payload['prompt_shape']} prompts",
+            f"with {payload['context_usage']} context",
+            f"and {payload['output_shape'].replace('_', ' ')}",
+        ]
+        if prompt_keywords:
+            summary_parts.append(f"prompt keywords: {', '.join(prompt_keywords)}")
+        if output_keywords:
+            summary_parts.append(f"output keywords: {', '.join(output_keywords)}")
+        learned_features.append(
+            ObservedInteractionFeature(
+                feature_id=f"interaction::{signature}",
+                model_name=model_name,
+                category="interaction_pattern",
+                summary="; ".join(summary_parts),
+                input_example=payload["prompt"],
+                output_example=payload["output_text"],
+                observation_count=payload["count"],
+                metadata={
+                    "signature": signature,
+                    "prompt_shape": payload["prompt_shape"],
+                    "context_usage": payload["context_usage"],
+                    "output_shape": payload["output_shape"],
+                    "prompt_keywords": prompt_keywords,
+                    "output_keywords": output_keywords,
+                },
+            )
+        )
+    return learned_features
 
 
 def discover_feature_vectors(

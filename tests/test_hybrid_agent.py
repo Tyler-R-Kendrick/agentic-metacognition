@@ -187,6 +187,43 @@ def test_in_memory_steering_memory_prefers_most_successful_controller_for_task_t
     assert memory.controller_success_rate("qa", "second") == pytest.approx(1.0)
 
 
+def test_discover_interaction_features_learns_per_model_signatures():
+    traces = [
+        steering.ActivationTrace(
+            model_name="model-a",
+            controller_id=None,
+            layer_idx=None,
+            prompt="Context:\nEvidence: Paris is the capital of France.\n\nQuestion: What is the capital of France?",
+            top_feature_scores=[],
+            output_text="1. Paris\n2. France",
+        ),
+        steering.ActivationTrace(
+            model_name="model-a",
+            controller_id=None,
+            layer_idx=None,
+            prompt="Context:\nEvidence: Rome is the capital of Italy.\n\nQuestion: What is the capital of Italy?",
+            top_feature_scores=[],
+            output_text="1. Rome\n2. Italy",
+        ),
+        steering.ActivationTrace(
+            model_name="model-b",
+            controller_id=None,
+            layer_idx=None,
+            prompt="Explain why the sky is blue.",
+            top_feature_scores=[],
+            output_text="Because molecules in the atmosphere scatter blue light more strongly.",
+        ),
+    ]
+
+    learned = steering.discover_interaction_features(traces)
+
+    assert [feature.model_name for feature in learned] == ["model-a", "model-b"]
+    assert learned[0].feature_id == "interaction::question__contextual__list_response"
+    assert learned[0].observation_count == 2
+    assert learned[1].feature_id == "interaction::explanation_request__direct__reasoned_response"
+    assert learned[1].observation_count == 1
+
+
 def test_controller_success_rate_returns_none_before_first_run():
     controller = steering.SteeringController(
         controller_id="untested",
@@ -278,3 +315,68 @@ def test_hybrid_meta_cognition_agent_falls_back_and_records_memory():
     assert executor.calls == ["retrieval_augmented_context_v1", None]
     assert len(memory.run_history) == 1
     assert memory.controller_success_rate("qa", "retrieval_augmented_context_v1") == pytest.approx(0.0)
+
+
+def test_hybrid_meta_cognition_agent_learns_dynamic_features_and_records_graph_state():
+    memory = steering.InMemorySteeringMemory()
+
+    class StubExecutor:
+        model_name = "stub-model"
+
+        def execute(self, task, plan, context, controller=None, controllers=(), max_new_tokens=80):
+            return steering.ExecutorResult(
+                prompt=f"Context:\n{' | '.join(context)}\n\nQuestion: {task}",
+                output_text="1. Paris\n2. France",
+                controller_id=None,
+            )
+
+    class StubGraphStore:
+        def __init__(self):
+            self.states = []
+
+        def start_run(self, task, plan):
+            return steering.GraphRunHandle(
+                run_id="run-1",
+                task_plan=steering.GraphTaskPlan.from_task_and_plan(task, plan),
+            )
+
+        def record_state(self, run_handle, **kwargs):
+            self.states.append(kwargs)
+            return f"state-{len(self.states)}"
+
+        def record_verifier_result(self, run_handle, **kwargs):
+            return None
+
+        def record_outcome(self, run_handle, **kwargs):
+            return None
+
+    def planner(task, memory_store):
+        return steering.PlannerDecision(task_type="qa", needs_retrieval=True, use_steering=False)
+
+    def retriever(task, plan):
+        return ["Evidence: Paris is the capital of France."]
+
+    def verifier(task, draft, context, plan):
+        return steering.VerifierResult(passed=True, confidence=0.95)
+
+    graph_store = StubGraphStore()
+    agent = steering.HybridMetaCognitionAgent(
+        planner=planner,
+        retriever=retriever,
+        executor=StubExecutor(),
+        verifier=verifier,
+        memory=memory,
+        graph_store=graph_store,
+    )
+
+    run = agent.run("What is the capital of France?")
+
+    assert run.draft.activation_trace is not None
+    assert run.draft.activation_trace.output_text == "1. Paris\n2. France"
+    assert run.draft.activation_trace.observed_feature_ids == [
+        "interaction::question__contextual__list_response"
+    ]
+    assert [feature.feature_id for feature in memory.list_dynamic_features("stub-model")] == [
+        "interaction::question__contextual__list_response"
+    ]
+    assert graph_store.states[1]["observed_features"][0].model_name == "stub-model"
