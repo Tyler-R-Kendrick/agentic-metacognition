@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
+from functools import lru_cache
 from importlib.resources import files
 from typing import Any, Mapping
 
@@ -146,17 +147,15 @@ class FeatureSpec:
 
     def get_extraction_texts(self, label: str | None = None) -> list[str]:
         """Return extraction example texts, optionally filtered by label."""
-        return [
-            example.text
-            for example in self.extraction_examples
-            if label is None or example.label == label
-        ]
+        return self._filter_texts(self.extraction_examples, label=label)
 
     def get_test_texts(self, label: str | None = None) -> list[str]:
         """Return evaluation/test texts, optionally filtered by label."""
-        return [
-            example.text for example in self.test_cases if label is None or example.label == label
-        ]
+        return self._filter_texts(self.test_cases, label=label)
+
+    @staticmethod
+    def _filter_texts(examples: list[FeatureExample], label: str | None = None) -> list[str]:
+        return [example.text for example in examples if label is None or example.label == label]
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -261,6 +260,7 @@ def load_standard_feature_catalogs() -> dict[str, FeatureCatalog]:
     return _build_feature_catalogs(raw_catalog)
 
 
+@lru_cache(maxsize=1)
 def _load_standard_feature_catalog_payload() -> dict[str, Any]:
     """Read the raw starter feature catalog payload once from package data."""
     with STANDARD_FEATURE_SPECS_PATH.open(encoding="utf-8") as catalog_file:

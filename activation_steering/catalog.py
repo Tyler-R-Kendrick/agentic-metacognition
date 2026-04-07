@@ -1,20 +1,28 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
+from functools import lru_cache
+from importlib.resources import files
 
-STANDARD_ACTIVATIONS_PATH = Path(__file__).parent / "data" / "standard_activations.json"
+STANDARD_ACTIVATIONS_PATH = files("activation_steering").joinpath(
+    "data", "standard_activations.json"
+)
 
 
-def load_standard_activation_catalog() -> dict:
-    """Load the file-backed standard activation catalog."""
+@lru_cache(maxsize=1)
+def _load_standard_activation_catalog_payload() -> dict:
     with STANDARD_ACTIVATIONS_PATH.open(encoding="utf-8") as catalog_file:
         return json.load(catalog_file)
 
 
+def load_standard_activation_catalog() -> dict:
+    """Load the file-backed standard activation catalog."""
+    return _load_standard_activation_catalog_payload().copy()
+
+
 def get_standard_activation_models() -> list[str]:
     """Return the model names currently represented in the standard activation catalog."""
-    catalog = load_standard_activation_catalog()
+    catalog = _load_standard_activation_catalog_payload()
     return list(catalog["models"])
 
 
@@ -23,7 +31,7 @@ def get_standard_activations(
     category: str | None = None,
 ) -> list[dict]:
     """Return the standard activations for one model, optionally filtered by category."""
-    catalog = load_standard_activation_catalog()
+    catalog = _load_standard_activation_catalog_payload()
     selected_model = model_name or catalog["default_model"]
     try:
         activations = catalog["models"][selected_model]["activations"]
