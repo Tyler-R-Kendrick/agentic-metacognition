@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import inspect
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -442,9 +443,17 @@ class InMemorySteeringMemory:
     def observe_interaction(self, trace: ActivationTrace) -> list[ObservedInteractionFeature]:
         trace_id = str(trace.metadata.get("interaction_trace_id") or f"trace-{uuid4().hex}")
         trace.metadata["interaction_trace_id"] = trace_id
-        if trace_id not in self._observed_trace_ids:
-            self.activation_traces.append(trace)
-            self._observed_trace_ids.add(trace_id)
+        if trace_id in self._observed_trace_ids:
+            observed_feature_ids = trace.metadata.get("observed_feature_ids", trace.observed_feature_ids)
+            trace.observed_feature_ids = [str(feature_id) for feature_id in observed_feature_ids]
+            return [
+                feature
+                for feature_id in trace.observed_feature_ids
+                for feature in [self._dynamic_features.get(trace.model_name, {}).get(feature_id)]
+                if feature is not None
+            ]
+        self.activation_traces.append(trace)
+        self._observed_trace_ids.add(trace_id)
         observed_features = discover_interaction_features([trace])
         stored_features: list[ObservedInteractionFeature] = []
         for feature in observed_features:
@@ -456,6 +465,8 @@ class InMemorySteeringMemory:
                 continue
             existing_feature.observation_count += feature.observation_count
             existing_feature.summary = feature.summary
+            existing_feature.input_example = feature.input_example
+            existing_feature.output_example = feature.output_example
             existing_feature.metadata.update(feature.metadata)
             existing_feature.metadata["latest_input_example"] = feature.input_example
             existing_feature.metadata["latest_output_example"] = feature.output_example
@@ -570,6 +581,32 @@ def _drift_score_from_verifier(verdict: VerifierResult) -> float:
     return max(0.0, 1.0 - float(verdict.confidence))
 
 
+def _record_graph_state(
+    graph_store: Any,
+    run_handle: Any,
+    *,
+    observed_features: Sequence[ObservedInteractionFeature] | None = None,
+    **kwargs: Any,
+) -> Any:
+    record_state = getattr(graph_store, "record_state", None)
+    if not callable(record_state):
+        return _call_component(graph_store, "record_state", run_handle, **kwargs)
+    if observed_features:
+        try:
+            signature = inspect.signature(record_state)
+        except (TypeError, ValueError):
+            signature = None
+        if signature is not None:
+            accepts_var_keyword = any(
+                parameter.kind == inspect.Parameter.VAR_KEYWORD
+                for parameter in signature.parameters.values()
+            )
+            if "observed_features" in signature.parameters or accepts_var_keyword:
+                return record_state(run_handle, observed_features=observed_features, **kwargs)
+        return record_state(run_handle, **kwargs)
+    return record_state(run_handle, **kwargs)
+
+
 def _ensure_activation_trace(
     draft: ExecutorResult,
     *,
@@ -634,9 +671,8 @@ class HybridMetaCognitionAgent:
             rendered_context, path_context = _coerce_context_payload(retrieved)
             context.extend(rendered_context)
             if graph_run is not None:
-                _call_component(
+                _record_graph_state(
                     self.graph_store,
-                    "record_state",
                     graph_run,
                     step=1,
                     text="Retrieved graph-native context" if path_context is not None else "Retrieved context",
@@ -672,9 +708,8 @@ class HybridMetaCognitionAgent:
         observed_features = self.memory.observe_interaction(initial_trace)
         draft_state_id = None
         if graph_run is not None:
-            draft_state_id = _call_component(
+            draft_state_id = _record_graph_state(
                 self.graph_store,
-                "record_state",
                 graph_run,
                 step=2,
                 text=draft.output_text,
@@ -727,9 +762,8 @@ class HybridMetaCognitionAgent:
             )
             observed_features = self.memory.observe_interaction(fallback_trace)
             if graph_run is not None:
-                draft_state_id = _call_component(
+                draft_state_id = _record_graph_state(
                     self.graph_store,
-                    "record_state",
                     graph_run,
                     step=3,
                     text=draft.output_text,

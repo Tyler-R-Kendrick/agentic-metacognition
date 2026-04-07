@@ -331,6 +331,14 @@ class Neo4jGraphStore:
     ) -> None:
         similarity_function = _validate_similarity_function(similarity_function)
         for label, property_name in self._UNIQUE_CONSTRAINTS.items():
+            if isinstance(property_name, tuple):
+                property_list = ", ".join(f"n.{name}" for name in property_name)
+                constraint_suffix = "_".join(property_name)
+                self._run(
+                    f"CREATE CONSTRAINT {label.lower()}_{constraint_suffix}_unique IF NOT EXISTS "
+                    f"FOR (n:{label}) REQUIRE ({property_list}) IS UNIQUE"
+                )
+                continue
             self._run(
                 f"CREATE CONSTRAINT {label.lower()}_{property_name}_unique IF NOT EXISTS "
                 f"FOR (n:{label}) REQUIRE n.{property_name} IS UNIQUE"
@@ -472,7 +480,7 @@ class Neo4jGraphStore:
                 MATCH (s:State {state_id: $state_id})
                 UNWIND $features AS feature
                 MERGE (m:Model {model_name: feature.model_name})
-                MERGE (f:InteractionFeature {feature_id: feature.feature_id})
+                MERGE (f:InteractionFeature {model_name: feature.model_name, feature_id: feature.feature_id})
                 SET f.category = feature.category,
                     f.summary = feature.summary,
                     f.input_example = feature.input_example,

@@ -389,3 +389,93 @@ def test_hybrid_meta_cognition_agent_learns_dynamic_features_and_records_graph_s
     assert len(dynamic_features) == 1
     assert dynamic_features[0].observation_count == 1
     assert graph_store.states[1]["observed_features"][0].model_name == "stub-model"
+
+
+def test_in_memory_steering_memory_refreshes_examples_without_double_counting_seen_trace():
+    memory = steering.InMemorySteeringMemory()
+    initial_trace = steering.ActivationTrace(
+        model_name="stub-model",
+        controller_id=None,
+        layer_idx=None,
+        prompt="Context:\nEvidence: Paris is the capital of France.\n\nQuestion: What is the capital of France?",
+        top_feature_scores=[],
+        output_text="1. Paris\n2. France",
+    )
+    updated_trace = steering.ActivationTrace(
+        model_name="stub-model",
+        controller_id=None,
+        layer_idx=None,
+        prompt="Context:\nEvidence: Rome is the capital of Italy.\n\nQuestion: What is the capital of Italy?",
+        top_feature_scores=[],
+        output_text="1. Rome\n2. Italy",
+    )
+
+    first_features = memory.observe_interaction(initial_trace)
+    repeated_features = memory.observe_interaction(initial_trace)
+    repeated_count = repeated_features[0].observation_count
+    refreshed_features = memory.observe_interaction(updated_trace)
+
+    assert len(first_features) == 1
+    assert repeated_count == 1
+    assert refreshed_features[0].observation_count == 2
+    assert refreshed_features[0].input_example == updated_trace.prompt
+    assert refreshed_features[0].output_example == updated_trace.output_text
+
+
+def test_hybrid_meta_cognition_agent_supports_graph_store_without_observed_features_kwarg():
+    memory = steering.InMemorySteeringMemory()
+
+    class StubExecutor:
+        model_name = "stub-model"
+
+        def execute(self, task, plan, context, controller=None, controllers=(), max_new_tokens=80):
+            return steering.ExecutorResult(prompt=task, output_text="Paris", controller_id=None)
+
+    class LegacyGraphStore:
+        def __init__(self):
+            self.states = []
+
+        def start_run(self, task, plan):
+            return steering.GraphRunHandle(
+                run_id="run-legacy",
+                task_plan=steering.GraphTaskPlan.from_task_and_plan(task, plan),
+            )
+
+        def record_state(self, run_handle, *, step, text, state_type, path_context=None, metadata=None):
+            self.states.append(
+                {
+                    "step": step,
+                    "text": text,
+                    "state_type": state_type,
+                    "path_context": path_context,
+                    "metadata": metadata,
+                }
+            )
+            return f"state-{len(self.states)}"
+
+        def record_verifier_result(self, run_handle, **kwargs):
+            return None
+
+        def record_outcome(self, run_handle, **kwargs):
+            return None
+
+    def planner(task, memory_store):
+        return steering.PlannerDecision(task_type="qa", use_steering=False)
+
+    def verifier(task, draft, context, plan):
+        return steering.VerifierResult(passed=True, confidence=0.9)
+
+    graph_store = LegacyGraphStore()
+    agent = steering.HybridMetaCognitionAgent(
+        planner=planner,
+        executor=StubExecutor(),
+        verifier=verifier,
+        memory=memory,
+        graph_store=graph_store,
+    )
+
+    run = agent.run("What is the capital of France?")
+
+    assert run.metadata["graph_run_id"] == "run-legacy"
+    assert len(graph_store.states) == 1
+    assert graph_store.states[0]["state_type"] == "draft"
