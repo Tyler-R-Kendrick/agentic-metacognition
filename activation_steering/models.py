@@ -75,8 +75,9 @@ def tokenize_text(text: str, tokenizer, device: str | torch.device):
 def get_hidden_states(text: str, model, tokenizer, device: str | torch.device):
     """Run the model and return embedding + per-layer hidden states."""
     inputs = tokenize_text(text, tokenizer, device)
-    outputs = model(**inputs, output_hidden_states=True, use_cache=False)
-    return outputs.hidden_states
+    with torch.inference_mode():
+        outputs = model(**inputs, output_hidden_states=True, use_cache=False)
+    return tuple(hidden_state.detach() for hidden_state in outputs.hidden_states)
 
 
 def get_last_token_hidden(
