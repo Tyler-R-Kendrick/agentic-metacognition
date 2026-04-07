@@ -11,7 +11,7 @@ def test_devcontainer_installs_github_cli_and_gh_aw() -> None:
 
     assert config['features']['ghcr.io/devcontainers/features/github-cli:1'] == {}
     assert 'install-gh-aw.sh' in config['postCreateCommand']
-    assert 'github/gh-aw/v0.67.1/install-gh-aw.sh' in config['postCreateCommand']
+    assert 'github/gh-aw/13ac7dee59ec5127393ec22dc3f4d0f6987a3842/install-gh-aw.sh' in config['postCreateCommand']
     assert 'bash /tmp/install-gh-aw.sh v0.67.1' in config['postCreateCommand']
 
 
@@ -22,7 +22,7 @@ def test_copilot_setup_steps_installs_repo_dependencies_and_gh_aw() -> None:
     assert 'actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd' in workflow_text
     assert 'actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065' in workflow_text
     assert 'python -m pip install -r requirements.txt' in workflow_text
-    assert 'github/gh-aw/v0.67.1/install-gh-aw.sh' in workflow_text
+    assert 'github/gh-aw/13ac7dee59ec5127393ec22dc3f4d0f6987a3842/install-gh-aw.sh' in workflow_text
     assert 'gh aw version' in workflow_text
 
 

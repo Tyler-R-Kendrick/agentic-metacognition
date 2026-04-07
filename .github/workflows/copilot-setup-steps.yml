@@ -30,7 +30,7 @@ jobs:
         run: python -m pip install -r requirements.txt
 
       - name: Install gh-aw extension
-        run: curl -fsSL https://raw.githubusercontent.com/github/gh-aw/v0.67.1/install-gh-aw.sh -o /tmp/install-gh-aw.sh && bash /tmp/install-gh-aw.sh v0.67.1 && rm -f /tmp/install-gh-aw.sh
+        run: curl -fsSL https://raw.githubusercontent.com/github/gh-aw/13ac7dee59ec5127393ec22dc3f4d0f6987a3842/install-gh-aw.sh -o /tmp/install-gh-aw.sh && bash /tmp/install-gh-aw.sh v0.67.1 && rm -f /tmp/install-gh-aw.sh
 
       - name: Verify gh-aw installation
         run: gh aw version
