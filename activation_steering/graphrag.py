@@ -645,6 +645,8 @@ class Neo4jGraphStore:
 class Neo4jPathRAGRetriever:
     """Thin adapter that combines Neo4j candidate retrieval with path-oriented Cypher expansion."""
 
+    TOP_K_CONFIG_KEY = "top_k"
+
     DEFAULT_EVIDENCE_QUERY = """
     MATCH (subgoal:Subgoal {subgoal_id: $subgoal_id})
     MATCH (chunk:Chunk)-[:SUPPORTS]->(claim:Claim)
@@ -726,7 +728,10 @@ class Neo4jPathRAGRetriever:
         retrieve = getattr(self.candidate_retriever, "retrieve", None)
         raw_results: Any
         if callable(search):
-            raw_results = search(query_text=query_text, retriever_config={"top_k": self.top_k})
+            raw_results = search(
+                query_text=query_text,
+                retriever_config={self.TOP_K_CONFIG_KEY: self.top_k},
+            )
         elif callable(retrieve):
             raw_results = retrieve(query_text, top_k=self.top_k)
         elif callable(self.candidate_retriever):
