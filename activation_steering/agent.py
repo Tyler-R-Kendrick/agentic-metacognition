@@ -501,6 +501,10 @@ def _coerce_context_payload(payload: Any) -> tuple[list[str], Any | None]:
     return [str(item) for item in payload], None
 
 
+def _drift_score_from_verifier(verdict: VerifierResult) -> float:
+    return max(0.0, 1.0 - float(verdict.confidence))
+
+
 class HybridMetaCognitionAgent:
     """Composable planner/retriever/executor/verifier loop with memory-backed controller routing."""
 
@@ -606,7 +610,7 @@ class HybridMetaCognitionAgent:
                     state_id=draft_state_id,
                     step=2,
                     drift_kind="verifier_rejected_steered_draft",
-                    score=max(0.0, 1.0 - float(verdict.confidence)),
+                    score=_drift_score_from_verifier(verdict),
                     description="Verifier rejected the steered draft, so the agent re-anchored with an unsteered fallback.",
                     correction_kind="fallback",
                     action="fallback_to_unsteered_execution",

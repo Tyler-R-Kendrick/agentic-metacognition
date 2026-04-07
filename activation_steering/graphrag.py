@@ -27,6 +27,15 @@ def _validate_similarity_function(similarity_function: str) -> str:
     return normalized
 
 
+ISSUE_PENALTY_PER_ITEM = 0.25
+
+
+def _verifier_completeness_from_issues(issues: Sequence[str]) -> float:
+    if not issues:
+        return 1.0
+    return max(0.0, 1.0 - ISSUE_PENALTY_PER_ITEM * len(issues))
+
+
 @dataclass(frozen=True)
 class GraphConstraint:
     constraint_id: str
@@ -534,7 +543,7 @@ class Neo4jGraphStore:
             groundedness=float(getattr(verdict, "confidence", 0.0)),
             consistency=1.0 if bool(getattr(verdict, "passed", False)) else 0.0,
             intent_alignment=float(getattr(verdict, "confidence", 0.0)),
-            completeness=1.0 if not issues else max(0.0, 1.0 - 0.25 * len(issues)),
+            completeness=_verifier_completeness_from_issues(issues),
             issues=issues,
         )
         return result_id
@@ -653,7 +662,7 @@ class Neo4jPathRAGRetriever:
     DEFAULT_EVIDENCE_QUERY = """
     MATCH (subgoal:Subgoal {subgoal_id: $subgoal_id})
     MATCH (chunk:Chunk)-[:SUPPORTS]->(claim:Claim)
-    WHERE size($candidate_chunk_ids) = 0 OR chunk.chunk_id IN $candidate_chunk_ids
+    WHERE $candidate_chunk_ids = [] OR chunk.chunk_id IN $candidate_chunk_ids
     OPTIONAL MATCH (claim)-[:ABOUT]->(entity:Entity)
     WITH subgoal, chunk, claim, collect(DISTINCT entity.entity_id) AS entity_ids
     RETURN chunk.chunk_id + '::' + claim.claim_id AS path_id,
