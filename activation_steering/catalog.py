@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+from functools import lru_cache
 from typing import Any, TypedDict
 
 from .artifact_plugins import (
@@ -19,6 +20,7 @@ STANDARD_ACTIVATIONS_PATH = STANDARD_ARTIFACT_PLUGIN_PATH.joinpath("activations.
 STANDARD_ACTIVATION_CATALOG_PATH = STANDARD_ACTIVATIONS_PATH
 
 
+@lru_cache(maxsize=1)
 def _load_standard_activation_catalog_payload() -> dict[str, Any]:
     artifact_catalog = load_artifact_plugin_catalog()
     return {

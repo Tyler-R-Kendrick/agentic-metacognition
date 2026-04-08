@@ -11,8 +11,8 @@ from uuid import uuid4
 import networkx as nx
 import torch
 
-from .artifact_plugins import load_model_artifact_bundle
 from .discovery import ObservedInteractionFeature, discover_interaction_features
+from .artifact_plugins import load_model_artifact_bundle
 from .graphrag import GraphTaskPlan
 from .models import DEFAULT_MAX_NEW_TOKENS, get_last_token_hidden, generate
 from .steering import generate_with_decaying_steering, generate_with_steering

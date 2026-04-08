@@ -28,15 +28,18 @@ def _normalize_plugin_roots(
 
 
 def _sorted_children(root: Any) -> list[Any]:
+    """Return directory children in lexical order for deterministic plugin merging."""
     return sorted(root.iterdir(), key=lambda child: child.name)
 
 
 def _read_json(path: Any) -> dict[str, Any]:
+    """Read one JSON file and return its parsed mapping payload."""
     with path.open(encoding="utf-8") as handle:
         return json.load(handle)
 
 
 def _is_plugin_dir(path: Any) -> bool:
+    """Return True when the directory contains the required plugin manifest."""
     return path.is_dir() and path.joinpath(ARTIFACT_PLUGIN_MANIFEST).is_file()
 
 
@@ -224,9 +227,9 @@ def _normalize_payload_entries(entries: Sequence[Any] | None) -> list[dict[str, 
     normalized: list[dict[str, Any]] = []
     for entry in entries or ():
         if hasattr(entry, "to_dict"):
-            normalized.append(dict(entry.to_dict()))
+            normalized.append(copy.deepcopy(entry.to_dict()))
         else:
-            normalized.append(dict(entry))
+            normalized.append(copy.deepcopy(dict(entry)))
     return normalized
 
 

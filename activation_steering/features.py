@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import json
+import copy
 from dataclasses import dataclass, field
 from functools import lru_cache
 from typing import Any, Mapping
@@ -299,8 +299,8 @@ def _load_standard_feature_catalog_payload() -> dict[str, Any]:
         "models": {
             model_name: {
                 "description": model_data["description"],
-                "features": json.loads(json.dumps(model_data["feature_specs"])),
-                "metadata": json.loads(json.dumps(model_data["metadata"])),
+                "features": copy.deepcopy(model_data["feature_specs"]),
+                "metadata": copy.deepcopy(model_data["metadata"]),
             }
             for model_name, model_data in artifact_catalog["models"].items()
         },
