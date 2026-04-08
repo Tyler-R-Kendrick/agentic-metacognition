@@ -9,6 +9,8 @@ from .catalog import (
 )
 from .discovery import (
     DiscoveredFeatureVector,
+    ObservedInteractionFeature,
+    discover_interaction_features,
     discover_and_store_feature_vectors,
     discover_feature_vectors,
     save_discovered_feature_vectors,
@@ -87,6 +89,7 @@ __all__ = [
     "DEFAULT_MAX_NEW_TOKENS",
     "DecayingActivationSteerer",
     "DiscoveredFeatureVector",
+    "ObservedInteractionFeature",
     "EvaluationCriterion",
     "ExecutorResult",
     "FeatureCatalog",
@@ -116,6 +119,7 @@ __all__ = [
     "collect_last_token_hiddens",
     "cosine",
     "discover_and_store_feature_vectors",
+    "discover_interaction_features",
     "discover_feature_vectors",
     "generate",
     "generate_with_adaptive_steering",

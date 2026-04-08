@@ -1,15 +1,18 @@
 from __future__ import annotations
 
+import inspect
 import json
 from dataclasses import dataclass, field
 from html import escape
 from pathlib import Path
 from typing import Any, Callable, Iterable, Mapping, Protocol, Sequence
+from uuid import uuid4
 
 import networkx as nx
 import torch
 
 from .graphrag import GraphTaskPlan
+from .discovery import ObservedInteractionFeature, discover_interaction_features
 from .models import DEFAULT_MAX_NEW_TOKENS, get_last_token_hidden, generate
 from .steering import generate_with_decaying_steering, generate_with_steering
 
@@ -125,12 +128,16 @@ class ActivationTrace:
     layer_idx: int | None
     prompt: str
     top_feature_scores: list[SteeringFeatureScore]
+    output_text: str = ""
     prompt_hidden_norm: float | None = None
+    observed_feature_ids: list[str] = field(default_factory=list)
     metadata: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         self.model_name = _require_text(self.model_name, "model_name")
         self.prompt = _require_text(self.prompt, "prompt")
+        self.output_text = str(self.output_text or "")
+        self.observed_feature_ids = [str(feature_id) for feature_id in self.observed_feature_ids]
         self.metadata = _coerce_metadata(self.metadata)
 
 
@@ -356,6 +363,17 @@ class SteeredExecutor:
                 device=self.device,
                 max_new_tokens=max_new_tokens,
             )
+            if activation_trace is None:
+                activation_trace = ActivationTrace(
+                    model_name=self.model_name,
+                    controller_id=None,
+                    layer_idx=trace_layer_idx,
+                    prompt=prompt,
+                    top_feature_scores=[],
+                    output_text=output_text,
+                )
+            else:
+                activation_trace.output_text = output_text
             return ExecutorResult(
                 prompt=prompt,
                 output_text=output_text,
@@ -387,6 +405,17 @@ class SteeredExecutor:
                 max_steps=controller.max_steps,
                 max_new_tokens=max_new_tokens,
             )
+        if activation_trace is None:
+            activation_trace = ActivationTrace(
+                model_name=self.model_name,
+                controller_id=controller.controller_id,
+                layer_idx=controller.layer_idx,
+                prompt=prompt,
+                top_feature_scores=[],
+                output_text=output_text,
+            )
+        else:
+            activation_trace.output_text = output_text
         return ExecutorResult(
             prompt=prompt,
             output_text=output_text,
@@ -402,6 +431,8 @@ class InMemorySteeringMemory:
         self._controllers: dict[str, SteeringController] = {}
         self.run_history: list[HybridAgentRun] = []
         self.activation_traces: list[ActivationTrace] = []
+        self._observed_trace_ids: set[str] = set()
+        self._dynamic_features: dict[str, dict[str, ObservedInteractionFeature]] = {}
         self._stats: dict[tuple[str, str], dict[str, int]] = {}
         self.register_controllers(controllers)
 
@@ -420,6 +451,55 @@ class InMemorySteeringMemory:
             raise ValueError(
                 f"Unknown controller_id {controller_id!r}; choose from: {available}."
             ) from exc
+
+    def observe_interaction(self, trace: ActivationTrace) -> list[ObservedInteractionFeature]:
+        trace_id = str(trace.metadata.get("interaction_trace_id") or f"trace-{uuid4().hex}")
+        trace.metadata["interaction_trace_id"] = trace_id
+        if trace_id in self._observed_trace_ids:
+            observed_feature_ids = trace.metadata.get(
+                "observed_feature_ids",
+                getattr(trace, "observed_feature_ids", []),
+            )
+            trace.observed_feature_ids = [str(feature_id) for feature_id in observed_feature_ids]
+            model_features = self._dynamic_features.get(trace.model_name, {})
+            existing_features: list[ObservedInteractionFeature] = []
+            for feature_id in trace.observed_feature_ids:
+                feature = model_features.get(feature_id)
+                if feature is not None:
+                    existing_features.append(feature)
+            return existing_features
+        self.activation_traces.append(trace)
+        self._observed_trace_ids.add(trace_id)
+        observed_features = discover_interaction_features([trace])
+        stored_features: list[ObservedInteractionFeature] = []
+        for feature in observed_features:
+            model_features = self._dynamic_features.setdefault(feature.model_name, {})
+            existing_feature = model_features.get(feature.feature_id)
+            if existing_feature is None:
+                model_features[feature.feature_id] = feature
+                stored_features.append(feature)
+                continue
+            existing_feature.observation_count += feature.observation_count
+            existing_feature.summary = feature.summary
+            existing_feature.input_example = feature.input_example
+            existing_feature.output_example = feature.output_example
+            existing_feature.metadata.update(feature.metadata)
+            existing_feature.metadata["latest_input_example"] = feature.input_example
+            existing_feature.metadata["latest_output_example"] = feature.output_example
+            stored_features.append(existing_feature)
+        trace.observed_feature_ids = [feature.feature_id for feature in stored_features]
+        if stored_features:
+            trace.metadata["observed_feature_ids"] = list(trace.observed_feature_ids)
+        return stored_features
+
+    def list_dynamic_features(self, model_name: str | None = None) -> list[ObservedInteractionFeature]:
+        if model_name is not None:
+            return list(self._dynamic_features.get(model_name, {}).values())
+        return [
+            feature
+            for features_by_name in self._dynamic_features.values()
+            for feature in features_by_name.values()
+        ]
 
     def controller_success_rate(self, task_type: str, controller_id: str) -> float | None:
         stats = self._stats.get((task_type, controller_id))
@@ -467,7 +547,7 @@ class InMemorySteeringMemory:
     def record_run(self, run: HybridAgentRun) -> None:
         self.run_history.append(run)
         if run.draft.activation_trace is not None:
-            self.activation_traces.append(run.draft.activation_trace)
+            self.observe_interaction(run.draft.activation_trace)
         if run.selected_controller_id is None:
             return
         key = (run.plan.task_type, run.selected_controller_id)
@@ -957,6 +1037,55 @@ def _write_graph_visualization_artifact(path: Path, graph_payload: Mapping[str, 
     return path
 
 
+def _record_graph_state(
+    graph_store: Any,
+    run_handle: Any,
+    *,
+    observed_features: Sequence[ObservedInteractionFeature] | None = None,
+    **kwargs: Any,
+) -> Any:
+    record_state = getattr(graph_store, "record_state", None)
+    if not callable(record_state):
+        return _call_component(graph_store, "record_state", run_handle, **kwargs)
+    if observed_features is not None:
+        try:
+            signature = inspect.signature(record_state)
+        except (TypeError, ValueError):
+            signature = None
+        if signature is not None:
+            accepts_var_keyword = any(
+                parameter.kind == inspect.Parameter.VAR_KEYWORD
+                for parameter in signature.parameters.values()
+            )
+            if "observed_features" in signature.parameters or accepts_var_keyword:
+                return record_state(run_handle, observed_features=observed_features, **kwargs)
+        return record_state(run_handle, **kwargs)
+    return record_state(run_handle, **kwargs)
+
+
+def _ensure_activation_trace(
+    draft: ExecutorResult,
+    *,
+    model_name: str,
+    controller: SteeringController | None,
+) -> ActivationTrace:
+    if draft.activation_trace is None:
+        draft.activation_trace = ActivationTrace(
+            model_name=model_name,
+            controller_id=draft.controller_id,
+            layer_idx=controller.layer_idx if controller is not None else None,
+            prompt=draft.prompt,
+            output_text=draft.output_text,
+            top_feature_scores=[],
+        )
+        return draft.activation_trace
+    if not draft.activation_trace.output_text:
+        draft.activation_trace.output_text = draft.output_text
+    if draft.activation_trace.controller_id is None:
+        draft.activation_trace.controller_id = draft.controller_id
+    return draft.activation_trace
+
+
 class HybridMetaCognitionAgent:
     """Composable planner/retriever/executor/verifier loop with memory-backed controller routing."""
 
@@ -1044,9 +1173,8 @@ class HybridMetaCognitionAgent:
             rendered_context, path_context = _coerce_context_payload(retrieved)
             context.extend(rendered_context)
             if graph_run is not None:
-                _call_component(
+                _record_graph_state(
                     self.graph_store,
-                    "record_state",
                     graph_run,
                     step=1,
                     text="Retrieved graph-native context" if path_context is not None else "Retrieved context",
@@ -1073,16 +1201,23 @@ class HybridMetaCognitionAgent:
             controllers=self.memory.list_controllers(),
             max_new_tokens=self.max_new_tokens,
         )
+        model_name = str(getattr(self.executor, "model_name", "unknown-model"))
+        initial_trace = _ensure_activation_trace(
+            draft,
+            model_name=model_name,
+            controller=selected_controller,
+        )
+        observed_features = self.memory.observe_interaction(initial_trace)
         draft_state_id = None
         if graph_run is not None:
-            draft_state_id = _call_component(
+            draft_state_id = _record_graph_state(
                 self.graph_store,
-                "record_state",
                 graph_run,
                 step=2,
                 text=draft.output_text,
                 state_type="draft",
                 path_context=path_context,
+                observed_features=observed_features,
                 metadata={
                     "prompt": draft.prompt,
                     "controller_id": draft.controller_id,
@@ -1122,15 +1257,21 @@ class HybridMetaCognitionAgent:
                 controllers=self.memory.list_controllers(),
                 max_new_tokens=self.max_new_tokens,
             )
+            fallback_trace = _ensure_activation_trace(
+                draft,
+                model_name=model_name,
+                controller=None,
+            )
+            observed_features = self.memory.observe_interaction(fallback_trace)
             if graph_run is not None:
-                draft_state_id = _call_component(
+                draft_state_id = _record_graph_state(
                     self.graph_store,
-                    "record_state",
                     graph_run,
                     step=3,
                     text=draft.output_text,
                     state_type="corrected_draft",
                     path_context=path_context,
+                    observed_features=observed_features,
                     metadata={
                         "prompt": draft.prompt,
                         "controller_id": draft.controller_id,

@@ -276,6 +276,7 @@ class Neo4jGraphStore:
         "Task": "task_id",
         "Intent": "intent_id",
         "Subgoal": "subgoal_id",
+        "Model": "model_name",
         "Document": "doc_id",
         "Chunk": "chunk_id",
         "Entity": "entity_id",
@@ -283,6 +284,7 @@ class Neo4jGraphStore:
         "Evidence": "evidence_id",
         "Run": "run_id",
         "State": "state_id",
+        "InteractionFeature": ("model_name", "feature_id"),
         "DriftEvent": "event_id",
         "Correction": "correction_id",
     }
@@ -329,6 +331,14 @@ class Neo4jGraphStore:
     ) -> None:
         similarity_function = _validate_similarity_function(similarity_function)
         for label, property_name in self._UNIQUE_CONSTRAINTS.items():
+            if isinstance(property_name, tuple):
+                property_list = ", ".join(f"n.{name}" for name in property_name)
+                constraint_suffix = "_".join(property_name)
+                self._run(
+                    f"CREATE CONSTRAINT {label.lower()}_{constraint_suffix}_unique IF NOT EXISTS "
+                    f"FOR (n:{label}) REQUIRE ({property_list}) IS UNIQUE"
+                )
+                continue
             self._run(
                 f"CREATE CONSTRAINT {label.lower()}_{property_name}_unique IF NOT EXISTS "
                 f"FOR (n:{label}) REQUIRE n.{property_name} IS UNIQUE"
@@ -443,6 +453,7 @@ class Neo4jGraphStore:
         text: str,
         state_type: str,
         path_context: PathRAGContext | None = None,
+        observed_features: Sequence[Any] = (),
         metadata: Mapping[str, Any] | None = None,
     ) -> str:
         state_id = f"state-{uuid4().hex}"
@@ -463,6 +474,37 @@ class Neo4jGraphStore:
             text=_require_text(text, "text"),
             state_type=_require_text(state_type, "state_type"),
         )
+        if observed_features:
+            self._run(
+                """
+                MATCH (s:State {state_id: $state_id})
+                UNWIND $features AS feature
+                MERGE (m:Model {model_name: feature.model_name})
+                MERGE (f:InteractionFeature {model_name: feature.model_name, feature_id: feature.feature_id})
+                SET f.category = feature.category,
+                    f.summary = feature.summary,
+                    f.input_example = feature.input_example,
+                    f.output_example = feature.output_example,
+                    f.observation_count = feature.observation_count,
+                    f.metadata_json = feature.metadata_json
+                MERGE (m)-[:EXHIBITS]->(f)
+                MERGE (s)-[:OBSERVED_FEATURE]->(f)
+                """,
+                state_id=state_id,
+                features=[
+                    {
+                        "feature_id": _require_text(feature.feature_id, "feature_id"),
+                        "model_name": _require_text(feature.model_name, "model_name"),
+                        "category": _require_text(feature.category, "category"),
+                        "summary": _require_text(feature.summary, "summary"),
+                        "input_example": str(getattr(feature, "input_example", "")),
+                        "output_example": str(getattr(feature, "output_example", "")),
+                        "observation_count": int(getattr(feature, "observation_count", 1)),
+                        "metadata_json": json.dumps(getattr(feature, "metadata", {}), sort_keys=True),
+                    }
+                    for feature in observed_features
+                ],
+            )
         if path_context is None:
             return state_id
         all_paths = (
