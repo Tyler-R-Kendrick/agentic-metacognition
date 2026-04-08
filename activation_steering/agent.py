@@ -1123,7 +1123,14 @@ class HybridMetaCognitionAgent:
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:
-        self.close()
+        if exc_type is None:
+            self.close()
+            return None
+        try:
+            self.close()
+        except Exception:
+            pass
+        return None
 
     def persist_artifacts(self, artifact_dir: str | Path | None = None) -> dict[str, Path] | None:
         destination = self.artifact_dir if artifact_dir is None else Path(artifact_dir)
