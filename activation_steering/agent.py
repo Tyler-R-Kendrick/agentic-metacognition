@@ -19,6 +19,7 @@ from .steering import generate_with_decaying_steering, generate_with_steering
 UNKNOWN_CONTROLLER_SORT_VALUE = float("-inf")
 RUNTIME_ARTIFACT_FORMAT_VERSION = 1
 MIN_TRUNCATE_LENGTH = 1
+TRUNCATION_SUFFIX = "..."
 SVG_MIN_WIDTH = 960
 SVG_WIDTH_PER_NODE = 200
 SVG_MIN_HEIGHT = 720
@@ -618,7 +619,9 @@ def _truncate_text(value: Any, limit: int = 72) -> str:
         return normalized
     if limit == MIN_TRUNCATE_LENGTH:
         return normalized[:limit]
-    return normalized[: limit - 1].rstrip() + "…"
+    if limit <= len(TRUNCATION_SUFFIX):
+        return normalized[:limit]
+    return normalized[: limit - len(TRUNCATION_SUFFIX)].rstrip() + TRUNCATION_SUFFIX
 
 
 def _serialize_task_plan(task_plan: GraphTaskPlan) -> dict[str, Any]:
@@ -1125,11 +1128,11 @@ class HybridMetaCognitionAgent:
     def persist_artifacts(self, artifact_dir: str | Path | None = None) -> dict[str, Path] | None:
         destination = self.artifact_dir if artifact_dir is None else Path(artifact_dir)
         close_graph_store = getattr(self.graph_store, "close", None)
-        persistence_error = None
-        artifacts = None
+        if destination is None:
+            if callable(close_graph_store):
+                close_graph_store()
+            return None
         try:
-            if destination is None:
-                return None
             destination.mkdir(parents=True, exist_ok=True)
             runtime_discoveries = _build_runtime_discoveries_payload(self.memory)
             graph_payload = _build_runtime_graph_payload(self.memory.run_history)
@@ -1144,17 +1147,15 @@ class HybridMetaCognitionAgent:
                     graph_payload,
                 ),
             }
-        except Exception as exc:
-            persistence_error = exc
-        if callable(close_graph_store):
-            try:
-                close_graph_store()
-            except Exception as close_exc:
-                if persistence_error is not None:
+        except Exception as persistence_error:
+            if callable(close_graph_store):
+                try:
+                    close_graph_store()
+                except Exception as close_exc:
                     raise persistence_error from close_exc
-                raise close_exc
-        if persistence_error is not None:
-            raise persistence_error
+            raise
+        if callable(close_graph_store):
+            close_graph_store()
         return artifacts
 
     def close(self) -> dict[str, Path] | None:
