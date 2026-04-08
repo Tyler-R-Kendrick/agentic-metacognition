@@ -531,10 +531,13 @@ def _drift_score_from_verifier(verdict: VerifierResult) -> float:
 
 def _truncate_text(value: Any, limit: int = 72) -> str:
     normalized = " ".join(str(value).split())
-    if limit <= MIN_TRUNCATE_LENGTH:
-        return normalized[:limit] if len(normalized) <= limit else "…"
+    limit = max(int(limit), 0)
+    if limit == 0:
+        return ""
     if len(normalized) <= limit:
         return normalized
+    if limit <= MIN_TRUNCATE_LENGTH:
+        return "…"
     return normalized[: limit - 1].rstrip() + "…"
 
 
@@ -853,7 +856,7 @@ def _write_json_artifact(path: Path, payload: Mapping[str, Any]) -> Path:
 
 def _scale_coordinate(value: float, lower: float, upper: float, size: float, padding: float) -> float:
     if abs(upper - lower) < SCALE_EPSILON:
-        return size / 2
+        return padding + (size - 2 * padding) / 2
     return padding + ((value - lower) / (upper - lower)) * (size - 2 * padding)
 
 
@@ -1018,9 +1021,9 @@ class HybridMetaCognitionAgent:
             try:
                 close_graph_store()
             except Exception as close_exc:
-                if persistence_error is None:
-                    raise close_exc
-                raise persistence_error from close_exc
+                if persistence_error is not None:
+                    raise persistence_error from close_exc
+                raise close_exc
         if persistence_error is not None:
             raise persistence_error
         return artifacts
