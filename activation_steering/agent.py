@@ -531,13 +531,13 @@ def _drift_score_from_verifier(verdict: VerifierResult) -> float:
 
 def _truncate_text(value: Any, limit: int = 72) -> str:
     normalized = " ".join(str(value).split())
-    limit = max(int(limit), 0)
+    limit = max(limit, 0)
     if limit == 0:
         return ""
     if len(normalized) <= limit:
         return normalized
-    if limit <= MIN_TRUNCATE_LENGTH:
-        return "…"
+    if limit == MIN_TRUNCATE_LENGTH:
+        return normalized[:limit]
     return normalized[: limit - 1].rstrip() + "…"
 
 
@@ -873,7 +873,7 @@ def _write_graph_visualization_artifact(path: Path, graph_payload: Mapping[str, 
             (
                 f'<svg xmlns="http://www.w3.org/2000/svg" width="{SVG_MIN_WIDTH}" height="200">'
                 '<rect width="100%" height="100%" fill="#f8fafc" />'
-                '<text x="480" y="100" text-anchor="middle" font-size="18" '
+                f'<text x="{SVG_MIN_WIDTH / 2}" y="100" text-anchor="middle" font-size="18" '
                 'font-family="Arial, sans-serif" fill="#0f172a">No graph state recorded.</text>'
                 "</svg>"
             ),
