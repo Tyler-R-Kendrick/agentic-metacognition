@@ -83,6 +83,8 @@ The repository also keeps a checked-in minimal-example artifact in source contro
 
 Use `HybridMetaCognitionAgent`, `SteeredExecutor`, `InMemorySteeringMemory`, and `load_steering_controllers(...)` to build a reusable hybrid agent where a planner decides when to retrieve context and which persisted controller to apply before the verifier judges the result.
 
+If you pass `artifact_dir=...` to `HybridMetaCognitionAgent`, call `agent.close()` (or use the agent as a context manager) to persist end-of-session runtime artifacts. The agent writes `adaptive_discoveries.json`, a diff-friendly `graph_state.json`, and a `graph_state.svg` visualization for the current session.
+
 ### Neo4j PathRAG / GraphRAG extension
 
 The hybrid-agent library now also includes additive graph-native helpers for Neo4j-backed reasoning trajectories:
