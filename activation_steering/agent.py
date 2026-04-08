@@ -532,7 +532,7 @@ def _drift_score_from_verifier(verdict: VerifierResult) -> float:
 def _truncate_text(value: Any, limit: int = 72) -> str:
     normalized = " ".join(str(value).split())
     if limit <= MIN_TRUNCATE_LENGTH:
-        return normalized if len(normalized) <= limit else "…"
+        return normalized[:limit] if len(normalized) <= limit else "…"
     if len(normalized) <= limit:
         return normalized
     return normalized[: limit - 1].rstrip() + "…"
@@ -1019,7 +1019,7 @@ class HybridMetaCognitionAgent:
                 close_graph_store()
             except Exception as close_exc:
                 if persistence_error is None:
-                    raise
+                    raise close_exc
                 raise persistence_error from close_exc
         if persistence_error is not None:
             raise persistence_error
