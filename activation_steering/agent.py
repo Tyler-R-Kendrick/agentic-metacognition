@@ -1152,7 +1152,8 @@ class HybridMetaCognitionAgent:
                 try:
                     close_graph_store()
                 except Exception as close_exc:
-                    raise persistence_error from close_exc
+                    persistence_error.__context__ = close_exc
+                    raise persistence_error
             raise
         if callable(close_graph_store):
             close_graph_store()
