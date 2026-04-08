@@ -1136,34 +1136,21 @@ class HybridMetaCognitionAgent:
         destination = self.artifact_dir if artifact_dir is None else Path(artifact_dir)
         close_graph_store = getattr(self.graph_store, "close", None)
         if destination is None:
-            if callable(close_graph_store):
-                close_graph_store()
             return None
-        try:
-            destination.mkdir(parents=True, exist_ok=True)
-            runtime_discoveries = _build_runtime_discoveries_payload(self.memory)
-            graph_payload = _build_runtime_graph_payload(self.memory.run_history)
-            artifacts = {
-                "adaptive_discoveries": _write_json_artifact(
-                    destination / "adaptive_discoveries.json",
-                    runtime_discoveries,
-                ),
-                "graph_state": _write_json_artifact(destination / "graph_state.json", graph_payload),
-                "graph_visualization": _write_graph_visualization_artifact(
-                    destination / "graph_state.svg",
-                    graph_payload,
-                ),
-            }
-        except Exception as persistence_error:
-            if callable(close_graph_store):
-                try:
-                    close_graph_store()
-                except Exception as close_exc:
-                    persistence_error.__context__ = close_exc
-                    raise persistence_error
-            raise
-        if callable(close_graph_store):
-            close_graph_store()
+        destination.mkdir(parents=True, exist_ok=True)
+        runtime_discoveries = _build_runtime_discoveries_payload(self.memory)
+        graph_payload = _build_runtime_graph_payload(self.memory.run_history)
+        artifacts = {
+            "adaptive_discoveries": _write_json_artifact(
+                destination / "adaptive_discoveries.json",
+                runtime_discoveries,
+            ),
+            "graph_state": _write_json_artifact(destination / "graph_state.json", graph_payload),
+            "graph_visualization": _write_graph_visualization_artifact(
+                destination / "graph_state.svg",
+                graph_payload,
+            ),
+        }
         return artifacts
 
     def close(self) -> dict[str, Path] | None:
