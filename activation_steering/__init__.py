@@ -1,5 +1,15 @@
 """Reusable activation steering helpers for decoder-only Hugging Face models."""
 
+from .artifact_plugins import (
+    ARTIFACT_PLUGIN_MODELS_ROOT,
+    ARTIFACT_PLUGIN_ROOT,
+    STANDARD_ARTIFACT_PLUGIN_PATH,
+    discover_artifact_plugin_paths,
+    load_artifact_plugin_catalog,
+    load_model_artifact_bundle,
+    merge_artifact_plugins,
+    write_artifact_plugin,
+)
 from .catalog import (
     STANDARD_ACTIVATION_CATALOG_PATH,
     STANDARD_ACTIVATIONS_PATH,
@@ -53,6 +63,7 @@ from .agent import (
     VerifierResult,
     build_executor_prompt,
     collect_controller_trace,
+    load_artifact_steering_controllers,
     load_steering_controllers,
 )
 from .models import (
@@ -85,6 +96,8 @@ __all__ = [
     "ActivationSteerer",
     "AdaptiveActivationSteerer",
     "ActivationTrace",
+    "ARTIFACT_PLUGIN_MODELS_ROOT",
+    "ARTIFACT_PLUGIN_ROOT",
     "DEFAULT_DO_SAMPLE",
     "DEFAULT_MAX_NEW_TOKENS",
     "DecayingActivationSteerer",
@@ -119,6 +132,7 @@ __all__ = [
     "collect_last_token_hiddens",
     "cosine",
     "discover_and_store_feature_vectors",
+    "discover_artifact_plugin_paths",
     "discover_interaction_features",
     "discover_feature_vectors",
     "generate",
@@ -136,16 +150,22 @@ __all__ = [
     "get_standard_feature_specs",
     "get_transformer_blocks",
     "get_transformer_layers",
+    "load_artifact_plugin_catalog",
+    "load_artifact_steering_controllers",
+    "load_model_artifact_bundle",
     "load_standard_activation_catalog",
     "load_standard_feature_catalogs",
     "load_steering_controllers",
     "load_model_and_tokenizer",
+    "merge_artifact_plugins",
     "save_discovered_feature_vectors",
     "serialize_path_rag_context",
+    "STANDARD_ARTIFACT_PLUGIN_PATH",
     "SteeredExecutor",
     "SteeringController",
     "SteeringFeatureScore",
     "tokenize_text",
     "train_probe",
     "VerifierResult",
+    "write_artifact_plugin",
 ]

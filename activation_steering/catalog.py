@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import copy
-import json
-from functools import lru_cache
-from importlib.resources import files
 from typing import Any, TypedDict
+
+from .artifact_plugins import (
+    STANDARD_ARTIFACT_PLUGIN_PATH,
+    load_artifact_plugin_catalog,
+)
 
 
 class ActivationEntry(TypedDict):
@@ -12,17 +14,23 @@ class ActivationEntry(TypedDict):
     category: str
     summary: str
 
-STANDARD_ACTIVATIONS_PATH = files("activation_steering").joinpath(
-    "data", "standard_activations.json"
-)
+STANDARD_ACTIVATIONS_PATH = STANDARD_ARTIFACT_PLUGIN_PATH.joinpath("activations.json")
 # Backward-compatible alias for callers that prefer a catalog-oriented name.
 STANDARD_ACTIVATION_CATALOG_PATH = STANDARD_ACTIVATIONS_PATH
 
 
-@lru_cache(maxsize=1)
 def _load_standard_activation_catalog_payload() -> dict[str, Any]:
-    with STANDARD_ACTIVATIONS_PATH.open(encoding="utf-8") as catalog_file:
-        return json.load(catalog_file)
+    artifact_catalog = load_artifact_plugin_catalog()
+    return {
+        "default_model": artifact_catalog["default_model"],
+        "models": {
+            model_name: {
+                "description": model_data["description"],
+                "activations": copy.deepcopy(model_data["activations"]),
+            }
+            for model_name, model_data in artifact_catalog["models"].items()
+        },
+    }
 
 
 def load_standard_activation_catalog() -> dict[str, Any]:
