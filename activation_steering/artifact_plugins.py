@@ -4,6 +4,7 @@ import copy
 import json
 from functools import lru_cache
 from importlib.resources import files
+from importlib.resources.abc import Traversable
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
 
@@ -15,36 +16,45 @@ ACTIVATIONS_ARTIFACT = "activations.json"
 FEATURE_SPECS_ARTIFACT = "feature_specs.json"
 CONTROLLERS_ARTIFACT = "controllers.json"
 ARTIFACT_PLUGIN_FORMAT_VERSION = 1
+PluginDirectory = Path | Traversable
+PluginRootInput = Sequence[str | Path | Traversable] | str | Path | Traversable | None
 
 
 def _normalize_plugin_roots(
-    plugin_roots: Sequence[str | Path] | str | Path | None,
-) -> list[Any]:
+    plugin_roots: PluginRootInput,
+) -> list[PluginDirectory]:
     if plugin_roots is None:
         return [ARTIFACT_PLUGIN_ROOT]
+    if isinstance(plugin_roots, Traversable):
+        return [plugin_roots]
     if isinstance(plugin_roots, (str, Path)):
         return [Path(plugin_roots)]
-    return [Path(root) for root in plugin_roots]
+    return [
+        root if isinstance(root, Traversable) else Path(root)
+        for root in plugin_roots
+    ]
 
 
-def _sorted_children(root: Any) -> list[Any]:
+def _sorted_children(root: PluginDirectory) -> list[PluginDirectory]:
     """Return directory children in lexical order for deterministic plugin merging."""
     return sorted(root.iterdir(), key=lambda child: child.name)
 
 
-def _read_json(path: Any) -> dict[str, Any]:
+def _read_json(path: PluginDirectory) -> dict[str, Any]:
     """Read one JSON file and return its parsed mapping payload."""
     with path.open(encoding="utf-8") as handle:
         return json.load(handle)
 
 
-def _is_plugin_dir(path: Any) -> bool:
+def _is_plugin_dir(path: PluginDirectory) -> bool:
     """Return True when the directory contains the required plugin manifest."""
     return path.is_dir() and path.joinpath(ARTIFACT_PLUGIN_MANIFEST).is_file()
 
 
-def _iter_plugin_dirs_from_collection(root: Any, model_name: str | None = None) -> list[Any]:
-    plugin_dirs: list[Any] = []
+def _iter_plugin_dirs_from_collection(
+    root: PluginDirectory, model_name: str | None = None
+) -> list[PluginDirectory]:
+    plugin_dirs: list[PluginDirectory] = []
     for candidate in _sorted_children(root):
         if not candidate.is_dir():
             continue
@@ -61,10 +71,10 @@ def _iter_plugin_dirs_from_collection(root: Any, model_name: str | None = None) 
 
 
 def discover_artifact_plugin_paths(
-    plugin_roots: Sequence[str | Path] | str | Path | None = None,
+    plugin_roots: PluginRootInput = None,
     model_name: str | None = None,
-) -> list[Any]:
-    plugin_dirs: list[Any] = []
+) -> list[PluginDirectory]:
+    plugin_dirs: list[PluginDirectory] = []
     seen: set[str] = set()
     for root in _normalize_plugin_roots(plugin_roots):
         if _is_plugin_dir(root):
@@ -92,7 +102,7 @@ def discover_artifact_plugin_paths(
     return plugin_dirs
 
 
-def _load_plugin_payload(plugin_dir: Any) -> dict[str, Any]:
+def _load_plugin_payload(plugin_dir: PluginDirectory) -> dict[str, Any]:
     manifest = _read_json(plugin_dir.joinpath(ARTIFACT_PLUGIN_MANIFEST))
     return {
         "plugin_path": str(plugin_dir),
@@ -136,7 +146,7 @@ def _merge_named_entries(
     return list(merged.values())
 
 
-def _build_artifact_catalog_from_plugins(plugin_dirs: Sequence[Any]) -> dict[str, Any]:
+def _build_artifact_catalog_from_plugins(plugin_dirs: Sequence[PluginDirectory]) -> dict[str, Any]:
     models: dict[str, dict[str, Any]] = {}
     default_model = None
 
@@ -196,7 +206,7 @@ def _build_artifact_catalog_from_plugins(plugin_dirs: Sequence[Any]) -> dict[str
 
 
 def load_artifact_plugin_catalog(
-    plugin_roots: Sequence[str | Path] | str | Path | None = None,
+    plugin_roots: PluginRootInput = None,
 ) -> dict[str, Any]:
     if plugin_roots is None:
         return copy.deepcopy(_load_builtin_artifact_catalog_payload())
@@ -205,7 +215,7 @@ def load_artifact_plugin_catalog(
 
 def load_model_artifact_bundle(
     model_name: str | None = None,
-    plugin_roots: Sequence[str | Path] | str | Path | None = None,
+    plugin_roots: PluginRootInput = None,
 ) -> dict[str, Any]:
     catalog = load_artifact_plugin_catalog(plugin_roots=plugin_roots)
     selected_model = model_name or catalog["default_model"]
@@ -321,7 +331,7 @@ def merge_artifact_plugins(
     output_dir: str | Path,
     *,
     model_name: str | None = None,
-    plugin_roots: Sequence[str | Path] | str | Path | None = None,
+    plugin_roots: PluginRootInput = None,
     merged_plugin_name: str = "merged",
     description: str = "",
     metadata: Mapping[str, Any] | None = None,
