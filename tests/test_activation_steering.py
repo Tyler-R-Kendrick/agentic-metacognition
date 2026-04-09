@@ -703,6 +703,29 @@ def test_write_artifact_plugin_derives_name_from_sanitized_folder_path(tmp_path)
     assert bundle["plugins"][0]["plugin_name"] == "team-pack-v1"
 
 
+def test_write_artifact_plugin_sanitizes_special_characters_in_folder_path(tmp_path):
+    plugin_dir = tmp_path / "plugins" / "models" / "gpt2" / "team   pack@v1"
+
+    steering.write_artifact_plugin(
+        plugin_dir,
+        model_name="gpt2",
+        controllers=[
+            {
+                "name": "chain_of_thought",
+                "model_name": "gpt2",
+                "category": "reasoning_strategy",
+                "summary": "Sanitized path controller summary.",
+                "layer_idx": 1,
+                "vector": [1.0, 0.0],
+            }
+        ],
+    )
+
+    bundle = steering.load_model_artifact_bundle(model_name="gpt2", plugin_roots=tmp_path / "plugins")
+
+    assert bundle["plugins"][0]["plugin_name"] == "team-pack-v1"
+
+
 def test_feature_example_round_trips_to_dict():
     example = steering.FeatureExample(
         text="Question: 2 + 2?\nAnswer: 4",

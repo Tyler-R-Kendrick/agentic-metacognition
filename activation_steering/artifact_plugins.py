@@ -54,7 +54,7 @@ def _is_plugin_dir(path: PluginDirectory) -> bool:
 
 def _sanitize_plugin_path(value: str) -> str:
     sanitized = re.sub(r"[^A-Za-z0-9._-]+", "-", value.strip().replace("\\", "/"))
-    sanitized = re.sub(r"-{2,}", "-", sanitized).strip("-._")
+    sanitized = re.sub(r"-{2,}", "-", sanitized).strip("-")
     if not sanitized:
         raise ValueError("Plugin folder path must produce a non-empty sanitized identifier.")
     return sanitized
@@ -299,7 +299,6 @@ def write_artifact_plugin(
 ) -> Path:
     destination = Path(output_dir)
     _validate_plugin_destination(destination, model_name)
-    plugin_name = _derive_plugin_name(destination, model_name)
     destination.mkdir(parents=True, exist_ok=True)
 
     manifest = {
