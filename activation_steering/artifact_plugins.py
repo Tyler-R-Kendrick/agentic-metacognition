@@ -251,7 +251,7 @@ def load_model_artifact_bundle(
     catalog = load_artifact_plugin_catalog(plugin_roots=plugin_roots)
     if not catalog["models"]:
         raise ValueError(
-            f"No artifact plugins found for plugin_roots={plugin_roots!r}."
+            f"No artifact plugins found for plugin_roots={plugin_roots!r}"
         )
     selected_model = model_name or catalog["default_model"]
     if selected_model is None or selected_model not in catalog["models"]:
