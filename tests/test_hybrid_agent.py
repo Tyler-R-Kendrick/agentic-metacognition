@@ -26,6 +26,11 @@ def persistent_vectors_path():
     return Path(__file__).parent / "data" / "minimal_identified_feature_vectors.json"
 
 
+@pytest.fixture()
+def packaged_artifact_root():
+    return Path(__file__).parent.parent / "activation_steering" / "artifacts"
+
+
 def test_load_steering_controllers_reads_persistent_vectors(persistent_vectors_path):
     controllers = steering.load_steering_controllers(
         persistent_vectors_path,
@@ -43,6 +48,106 @@ def test_load_steering_controllers_reads_persistent_vectors(persistent_vectors_p
     assert chain_of_thought.task_types == ("qa",)
     assert chain_of_thought.alpha == pytest.approx(1.25)
     assert chain_of_thought.decay == pytest.approx(0.8)
+
+
+def test_load_steering_controllers_reads_artifact_plugin_dir(packaged_artifact_root):
+    plugin_dir = packaged_artifact_root / "models" / "gpt2" / "minimal"
+
+    controllers = steering.load_steering_controllers(plugin_dir)
+
+    assert len(controllers) == 4
+    assert {controller.controller_id for controller in controllers} == {
+        "few_shot_prompting",
+        "retrieval_augmented_context",
+        "react",
+        "chain_of_thought",
+    }
+
+
+def test_load_artifact_plugin_controllers_merges_plugin_roots(tmp_path):
+    artifact_root = tmp_path / "artifacts"
+    first_plugin_dir = steering.get_artifact_plugin_dir(
+        "gpt2",
+        "base",
+        artifact_root=artifact_root,
+    )
+    first_plugin_dir.mkdir(parents=True, exist_ok=True)
+    (first_plugin_dir / steering.ARTIFACT_PLUGIN_FEATURE_VECTORS_NAME).write_text(
+        json.dumps(
+            {
+                "feature_vectors": [
+                    {
+                        "name": "shared_controller",
+                        "model_name": "gpt2",
+                        "category": "reasoning_strategy",
+                        "summary": "Base summary.",
+                        "layer_idx": 1,
+                        "vector": [1.0, 0.0],
+                    },
+                    {
+                        "name": "base_only",
+                        "model_name": "gpt2",
+                        "category": "reasoning_strategy",
+                        "summary": "Base only.",
+                        "layer_idx": 1,
+                        "vector": [0.0, 1.0],
+                    },
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    steering.write_artifact_plugin_manifest(
+        first_plugin_dir,
+        model_name="gpt2",
+        plugin_name="base",
+        artifacts={"feature_vectors": steering.ARTIFACT_PLUGIN_FEATURE_VECTORS_NAME},
+    )
+
+    second_plugin_dir = steering.get_artifact_plugin_dir(
+        "gpt2",
+        "override",
+        artifact_root=artifact_root,
+    )
+    second_plugin_dir.mkdir(parents=True, exist_ok=True)
+    (second_plugin_dir / steering.ARTIFACT_PLUGIN_FEATURE_VECTORS_NAME).write_text(
+        json.dumps(
+            {
+                "feature_vectors": [
+                    {
+                        "name": "shared_controller",
+                        "model_name": "gpt2",
+                        "category": "reasoning_strategy",
+                        "summary": "Override summary.",
+                        "layer_idx": 1,
+                        "vector": [0.5, 0.5],
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    steering.write_artifact_plugin_manifest(
+        second_plugin_dir,
+        model_name="gpt2",
+        plugin_name="override",
+        artifacts={"feature_vectors": steering.ARTIFACT_PLUGIN_FEATURE_VECTORS_NAME},
+    )
+
+    controllers = steering.load_artifact_plugin_controllers(
+        "gpt2",
+        artifact_roots=[artifact_root],
+    )
+
+    assert {controller.controller_id for controller in controllers} == {
+        "shared_controller",
+        "base_only",
+    }
+    shared = next(
+        controller for controller in controllers if controller.controller_id == "shared_controller"
+    )
+    assert shared.metadata["summary"] == "Override summary."
+    assert shared.vector.tolist() == pytest.approx([0.5, 0.5])
 
 
 def test_load_steering_controllers_coerces_integral_max_steps(tmp_path):
@@ -405,9 +510,12 @@ def test_hybrid_meta_cognition_agent_persists_runtime_artifacts_on_close(tmp_pat
         run = agent.run("What is the capital of France?")
 
     assert run.verdict.passed is True
-    adaptive_discoveries_path = tmp_path / "adaptive_discoveries.json"
-    graph_state_path = tmp_path / "graph_state.json"
-    graph_visualization_path = tmp_path / "graph_state.svg"
+    plugin_dir = tmp_path / "models" / "stub-model" / steering.DEFAULT_RUNTIME_PLUGIN_NAME
+    manifest_path = plugin_dir / steering.ARTIFACT_PLUGIN_MANIFEST_NAME
+    adaptive_discoveries_path = plugin_dir / "adaptive_discoveries.json"
+    graph_state_path = plugin_dir / "graph_state.json"
+    graph_visualization_path = plugin_dir / "graph_state.svg"
+    assert manifest_path.is_file()
     assert adaptive_discoveries_path.is_file()
     assert graph_state_path.is_file()
     assert graph_visualization_path.is_file()

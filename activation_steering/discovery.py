@@ -9,6 +9,11 @@ from typing import Any, Iterable
 
 import torch
 
+from .artifact_plugins import (
+    ARTIFACT_PLUGIN_FEATURE_VECTORS_NAME,
+    get_artifact_plugin_dir,
+    write_artifact_plugin_manifest,
+)
 from .features import FeatureCatalog, FeatureSpec
 from .steering import build_mean_difference_vector
 
@@ -386,6 +391,30 @@ def save_discovered_feature_vectors(
     return destination
 
 
+def save_discovered_feature_vector_plugin(
+    feature_vectors: Iterable[DiscoveredFeatureVector],
+    artifact_root: str | Path,
+    *,
+    model_name: str,
+    plugin_name: str,
+    description: str | None = None,
+) -> Path:
+    """Persist discovered feature vectors in the shared artifact plugin layout."""
+    plugin_dir = get_artifact_plugin_dir(model_name, plugin_name, artifact_root=artifact_root)
+    payload_path = save_discovered_feature_vectors(
+        feature_vectors,
+        plugin_dir / ARTIFACT_PLUGIN_FEATURE_VECTORS_NAME,
+    )
+    write_artifact_plugin_manifest(
+        plugin_dir,
+        model_name=model_name,
+        plugin_name=plugin_name,
+        description=description,
+        artifacts={"feature_vectors": ARTIFACT_PLUGIN_FEATURE_VECTORS_NAME},
+    )
+    return payload_path
+
+
 def discover_and_store_feature_vectors(
     feature_specs: FeatureCatalog | Iterable[FeatureSpec],
     layer_idx: int,
@@ -403,4 +432,34 @@ def discover_and_store_feature_vectors(
         device=device,
     )
     save_discovered_feature_vectors(discovered_vectors, output_path)
+    return discovered_vectors
+
+
+def discover_and_store_feature_vector_plugin(
+    feature_specs: FeatureCatalog | Iterable[FeatureSpec],
+    layer_idx: int,
+    model,
+    tokenizer,
+    device: str | torch.device,
+    artifact_root: str | Path,
+    *,
+    model_name: str,
+    plugin_name: str,
+    description: str | None = None,
+) -> list[DiscoveredFeatureVector]:
+    """Run discovery and persist the results in the shared artifact plugin layout."""
+    discovered_vectors = discover_feature_vectors(
+        feature_specs=feature_specs,
+        layer_idx=layer_idx,
+        model=model,
+        tokenizer=tokenizer,
+        device=device,
+    )
+    save_discovered_feature_vector_plugin(
+        discovered_vectors,
+        artifact_root,
+        model_name=model_name,
+        plugin_name=plugin_name,
+        description=description,
+    )
     return discovered_vectors

@@ -11,6 +11,15 @@ from uuid import uuid4
 import networkx as nx
 import torch
 
+from .artifact_plugins import (
+    ARTIFACT_PLUGIN_FEATURE_VECTORS_NAME,
+    DEFAULT_RUNTIME_PLUGIN_NAME,
+    get_artifact_plugin_dir,
+    load_artifact_plugin_payloads,
+    merge_artifact_plugin_payloads,
+    resolve_artifact_plugin_dirs,
+    write_artifact_plugin_manifest,
+)
 from .graphrag import GraphTaskPlan
 from .discovery import ObservedInteractionFeature, discover_interaction_features
 from .models import DEFAULT_MAX_NEW_TOKENS, get_last_token_hidden, generate
@@ -195,23 +204,20 @@ def _coerce_controller_payloads(payload: Mapping[str, Any]) -> list[dict[str, An
     raise ValueError("Expected a payload with either 'feature_vectors' or 'controllers'.")
 
 
-def load_steering_controllers(
-    input_path: str | Path,
-    default_alpha: float = 1.5,
-    default_decay: float = 1.0,
+def _build_controllers_from_payload(
+    payload: Mapping[str, Any],
+    *,
+    default_alpha: float,
+    default_decay: float,
     task_types_by_controller: Mapping[str, Sequence[str]] | None = None,
 ) -> list[SteeringController]:
-    """Load reusable steering controllers from persisted discovered feature vectors."""
-    payload = json.loads(Path(input_path).read_text(encoding="utf-8"))
     task_types_by_controller = task_types_by_controller or {}
     controllers = []
     for entry in _coerce_controller_payloads(payload):
         controller_id_value = entry.get("controller_id", entry.get("name"))
         feature_name_value = entry.get("feature_name", entry.get("name"))
         if controller_id_value is None or feature_name_value is None:
-            raise ValueError(
-                "Each persisted controller entry must include 'controller_id' or 'name'."
-            )
+            raise ValueError("Each persisted controller entry must include 'controller_id' or 'name'.")
         controller_id = str(controller_id_value)
         feature_name = str(feature_name_value)
         task_types = tuple(task_types_by_controller.get(controller_id, ()))
@@ -234,6 +240,61 @@ def load_steering_controllers(
             )
         )
     return controllers
+
+
+def load_steering_controllers(
+    input_path: str | Path,
+    default_alpha: float = 1.5,
+    default_decay: float = 1.0,
+    task_types_by_controller: Mapping[str, Sequence[str]] | None = None,
+) -> list[SteeringController]:
+    """Load reusable steering controllers from persisted discovered feature vectors."""
+    path = Path(input_path)
+    if path.is_dir():
+        plugin_dirs = resolve_artifact_plugin_dirs(path)
+        if plugin_dirs:
+            payload = merge_artifact_plugin_payloads(
+                json.loads(
+                    (plugin_dir / ARTIFACT_PLUGIN_FEATURE_VECTORS_NAME).read_text(encoding="utf-8")
+                )
+                for plugin_dir in plugin_dirs
+                if (plugin_dir / ARTIFACT_PLUGIN_FEATURE_VECTORS_NAME).is_file()
+            )
+            if payload["feature_vector_count"] == 0:
+                raise FileNotFoundError(f"No artifact plugin payloads found under {path}.")
+        else:
+            raise FileNotFoundError(f"No artifact plugin payloads found under {path}.")
+    else:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    return _build_controllers_from_payload(
+        payload,
+        default_alpha=default_alpha,
+        default_decay=default_decay,
+        task_types_by_controller=task_types_by_controller,
+    )
+
+
+def load_artifact_plugin_controllers(
+    model_name: str,
+    *,
+    artifact_roots: Sequence[str | Path] | None = None,
+    plugin_names: Sequence[str] | None = None,
+    default_alpha: float = 1.5,
+    default_decay: float = 1.0,
+    task_types_by_controller: Mapping[str, Sequence[str]] | None = None,
+) -> list[SteeringController]:
+    """Load and merge artifact plugin controllers for one model."""
+    payload = load_artifact_plugin_payloads(
+        model_name,
+        artifact_roots=artifact_roots,
+        plugin_names=plugin_names,
+    )
+    return _build_controllers_from_payload(
+        payload,
+        default_alpha=default_alpha,
+        default_decay=default_decay,
+        task_types_by_controller=task_types_by_controller,
+    )
 
 
 def build_executor_prompt(task: str, context: Sequence[str], plan: PlannerDecision) -> str:
@@ -1137,20 +1198,37 @@ class HybridMetaCognitionAgent:
         close_graph_store = getattr(self.graph_store, "close", None)
         if destination is None:
             return None
-        destination.mkdir(parents=True, exist_ok=True)
+        model_name = str(getattr(self.executor, "model_name", "unknown-model"))
+        plugin_dir = get_artifact_plugin_dir(
+            model_name,
+            DEFAULT_RUNTIME_PLUGIN_NAME,
+            artifact_root=destination,
+        )
+        plugin_dir.mkdir(parents=True, exist_ok=True)
         runtime_discoveries = _build_runtime_discoveries_payload(self.memory)
         graph_payload = _build_runtime_graph_payload(self.memory.run_history)
         artifacts = {
             "adaptive_discoveries": _write_json_artifact(
-                destination / "adaptive_discoveries.json",
+                plugin_dir / "adaptive_discoveries.json",
                 runtime_discoveries,
             ),
-            "graph_state": _write_json_artifact(destination / "graph_state.json", graph_payload),
+            "graph_state": _write_json_artifact(plugin_dir / "graph_state.json", graph_payload),
             "graph_visualization": _write_graph_visualization_artifact(
-                destination / "graph_state.svg",
+                plugin_dir / "graph_state.svg",
                 graph_payload,
             ),
         }
+        artifacts["manifest"] = write_artifact_plugin_manifest(
+            plugin_dir,
+            model_name=model_name,
+            plugin_name=DEFAULT_RUNTIME_PLUGIN_NAME,
+            description="Runtime artifacts persisted by HybridMetaCognitionAgent.",
+            artifacts={
+                "adaptive_discoveries": "adaptive_discoveries.json",
+                "graph_state": "graph_state.json",
+                "graph_visualization": "graph_state.svg",
+            },
+        )
         return artifacts
 
     def close(self) -> dict[str, Path] | None:
