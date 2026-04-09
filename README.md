@@ -46,9 +46,9 @@ The repo also includes a Copilot setup workflow at `.github/workflows/copilot-se
 
 A daily GitHub Agentic Workflow source lives at `.github/workflows/daily-gh-aw-training.md`. It researches the repository's training artifacts for missing feature-extraction opportunities, then opens one delegated Copilot issue for the best candidate. The repository also includes a `gh-aw` Copilot skill under `.github/skills/gh-aw/` with command reference docs for the CLI surface.
 
-### Notebook example
+### Notebook examples
 
-Open `notebooks/minimal_activation_steering.ipynb` to run the minimal end-to-end use case. The notebook defines its own sample prompts and imports the shared `activation_steering` library helpers directly.
+Open `notebooks/minimal_activation_steering.ipynb` to run the minimal end-to-end use case. The notebook now walks through the setup, contrastive examples, steering-vector construction, and baseline-versus-steered comparison step by step.
 
 Open `notebooks/hybrid_meta_cognition_agent.ipynb` for a reusable hybrid-agent example that:
 
@@ -56,6 +56,13 @@ Open `notebooks/hybrid_meta_cognition_agent.ipynb` for a reusable hybrid-agent e
 - reloads them as named controllers
 - routes a task through planner, retrieval, steering, verification, and memory write-back
 - keeps the demo logic in the notebook while using the shared library implementation
+
+Open `notebooks/adaptive_feature_steering.ipynb` for an explanatory local demo of adaptive feature steering:
+
+- discovering a new interaction feature from a chat transcript
+- monitoring drift from a goal that depends on that discovered feature
+- adaptively steering toward the feature when the draft drifts away from the goal
+- adaptively steering away from the feature when the goal changes
 
 ### Inspiration
 
