@@ -11,8 +11,9 @@ from uuid import uuid4
 import networkx as nx
 import torch
 
-from .graphrag import GraphTaskPlan
 from .discovery import ObservedInteractionFeature, discover_interaction_features
+from .artifact_plugins import load_model_artifact_bundle
+from .graphrag import GraphTaskPlan
 from .models import DEFAULT_MAX_NEW_TOKENS, get_last_token_hidden, generate
 from .steering import generate_with_decaying_steering, generate_with_steering
 
@@ -195,14 +196,13 @@ def _coerce_controller_payloads(payload: Mapping[str, Any]) -> list[dict[str, An
     raise ValueError("Expected a payload with either 'feature_vectors' or 'controllers'.")
 
 
-def load_steering_controllers(
-    input_path: str | Path,
-    default_alpha: float = 1.5,
-    default_decay: float = 1.0,
-    task_types_by_controller: Mapping[str, Sequence[str]] | None = None,
+def _build_steering_controllers(
+    payload: Mapping[str, Any],
+    *,
+    default_alpha: float,
+    default_decay: float,
+    task_types_by_controller: Mapping[str, Sequence[str]] | None,
 ) -> list[SteeringController]:
-    """Load reusable steering controllers from persisted discovered feature vectors."""
-    payload = json.loads(Path(input_path).read_text(encoding="utf-8"))
     task_types_by_controller = task_types_by_controller or {}
     controllers = []
     for entry in _coerce_controller_payloads(payload):
@@ -234,6 +234,40 @@ def load_steering_controllers(
             )
         )
     return controllers
+
+
+def load_steering_controllers(
+    input_path: str | Path,
+    default_alpha: float = 1.5,
+    default_decay: float = 1.0,
+    task_types_by_controller: Mapping[str, Sequence[str]] | None = None,
+) -> list[SteeringController]:
+    """Load reusable steering controllers from persisted discovered feature vectors."""
+    payload = json.loads(Path(input_path).read_text(encoding="utf-8"))
+    return _build_steering_controllers(
+        payload,
+        default_alpha=default_alpha,
+        default_decay=default_decay,
+        task_types_by_controller=task_types_by_controller,
+    )
+
+
+def load_artifact_steering_controllers(
+    model_name: str | None = None,
+    *,
+    plugin_roots: Sequence[str | Path] | str | Path | None = None,
+    default_alpha: float = 1.5,
+    default_decay: float = 1.0,
+    task_types_by_controller: Mapping[str, Sequence[str]] | None = None,
+) -> list[SteeringController]:
+    """Load merged steering controllers from model artifact plugins."""
+    bundle = load_model_artifact_bundle(model_name=model_name, plugin_roots=plugin_roots)
+    return _build_steering_controllers(
+        {"controllers": bundle["controllers"]},
+        default_alpha=default_alpha,
+        default_decay=default_decay,
+        task_types_by_controller=task_types_by_controller,
+    )
 
 
 def build_executor_prompt(task: str, context: Sequence[str], plan: PlannerDecision) -> str:

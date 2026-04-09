@@ -1,14 +1,16 @@
 from __future__ import annotations
 
-import json
+import copy
 from dataclasses import dataclass, field
 from functools import lru_cache
-from importlib.resources import files
 from typing import Any, Mapping
 
-STANDARD_FEATURE_SPECS_PATH = files("activation_steering").joinpath(
-    "data", "standard_feature_specs.json"
+from .artifact_plugins import (
+    STANDARD_ARTIFACT_PLUGIN_PATH,
+    load_artifact_plugin_catalog,
 )
+
+STANDARD_FEATURE_SPECS_PATH = STANDARD_ARTIFACT_PLUGIN_PATH.joinpath("feature_specs.json")
 # Backward-compatible alias for callers that prefer a catalog-oriented name.
 STANDARD_FEATURE_CATALOG_PATH = STANDARD_FEATURE_SPECS_PATH
 
@@ -291,8 +293,18 @@ def load_standard_feature_catalogs() -> dict[str, FeatureCatalog]:
 @lru_cache(maxsize=1)
 def _load_standard_feature_catalog_payload() -> dict[str, Any]:
     """Read the raw starter feature catalog payload once from package data."""
-    with STANDARD_FEATURE_SPECS_PATH.open(encoding="utf-8") as catalog_file:
-        return json.load(catalog_file)
+    artifact_catalog = load_artifact_plugin_catalog()
+    return {
+        "default_model": artifact_catalog["default_model"],
+        "models": {
+            model_name: {
+                "description": model_data["description"],
+                "features": copy.deepcopy(model_data["feature_specs"]),
+                "metadata": copy.deepcopy(model_data["metadata"]),
+            }
+            for model_name, model_data in artifact_catalog["models"].items()
+        },
+    }
 
 
 def _build_feature_catalogs(raw_catalog: Mapping[str, Any]) -> dict[str, FeatureCatalog]:

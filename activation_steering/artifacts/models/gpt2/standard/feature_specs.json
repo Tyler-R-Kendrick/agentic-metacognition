@@ -1,0 +1,130 @@
+{
+  "format_version": 1,
+  "feature_count": 4,
+  "features": [
+    {
+      "name": "few_shot_prompting",
+      "category": "prompt_engineering",
+      "summary": "Capture prompts that rely on a few exemplars before the target task.",
+      "extraction_examples": [
+        {
+          "text": "Classify the sentiment.\nExample: I love this movie -> positive\nExample: This was terrible -> negative\nInput: The ending was satisfying.\nAnswer:",
+          "label": "positive"
+        },
+        {
+          "text": "Classify the sentiment of: The ending was satisfying.",
+          "label": "negative"
+        }
+      ],
+      "test_cases": [
+        {
+          "text": "Translate to French.\nExample: hello -> bonjour\nExample: goodbye -> au revoir\nInput: thank you\nAnswer:",
+          "label": "expected_feature_present"
+        }
+      ],
+      "evaluation_criteria": [
+        {
+          "name": "contains_demonstrations",
+          "description": "The prompt includes explicit worked examples before the target input."
+        },
+        {
+          "name": "examples_align_with_task",
+          "description": "The provided demonstrations are structurally consistent with the requested task."
+        }
+      ]
+    },
+    {
+      "name": "retrieval_augmented_context",
+      "category": "context_engineering",
+      "summary": "Capture prompts that inject retrieved context alongside the task request.",
+      "extraction_examples": [
+        {
+          "text": "Context:\n- The Eiffel Tower is in Paris.\n- It opened in 1889.\nQuestion: In what city is the Eiffel Tower located?\nAnswer:",
+          "label": "positive"
+        },
+        {
+          "text": "Question: In what city is the Eiffel Tower located?\nAnswer:",
+          "label": "negative"
+        }
+      ],
+      "test_cases": [
+        {
+          "text": "Context:\n- Mars is known as the Red Planet.\nQuestion: Which planet is called the Red Planet?\nAnswer:",
+          "label": "expected_feature_present"
+        }
+      ],
+      "evaluation_criteria": [
+        {
+          "name": "includes_reference_context",
+          "description": "The prompt includes externally provided reference material."
+        },
+        {
+          "name": "context_relevant_to_question",
+          "description": "The injected context is directly useful for answering the task."
+        }
+      ]
+    },
+    {
+      "name": "react",
+      "category": "cognitive_architecture",
+      "summary": "Capture prompts or traces that alternate reasoning, action, and observation steps.",
+      "extraction_examples": [
+        {
+          "text": "Question: What is the capital of France?\nThought: I should verify the answer.\nAction: search[capital of France]\nObservation: Paris is the capital of France.\nAnswer: Paris",
+          "label": "positive"
+        },
+        {
+          "text": "Question: What is the capital of France?\nAnswer: Paris",
+          "label": "negative"
+        }
+      ],
+      "test_cases": [
+        {
+          "text": "Question: Who wrote Hamlet?\nThought: I should consult a reference.\nAction: search[Hamlet author]\nObservation: Hamlet was written by William Shakespeare.\nAnswer: William Shakespeare",
+          "label": "expected_feature_present"
+        }
+      ],
+      "evaluation_criteria": [
+        {
+          "name": "contains_action_step",
+          "description": "The reasoning trace explicitly includes an action step."
+        },
+        {
+          "name": "contains_observation_step",
+          "description": "The trace records an observation that follows the action."
+        }
+      ]
+    },
+    {
+      "name": "chain_of_thought",
+      "category": "reasoning_strategy",
+      "summary": "Capture responses that show intermediate reasoning before the final answer.",
+      "extraction_examples": [
+        {
+          "text": "Question: If a shirt costs $12 and is discounted by $3, what is the final price?\nReasoning: Start with 12 dollars and subtract 3 dollars to get 9 dollars.\nAnswer: $9",
+          "label": "positive"
+        },
+        {
+          "text": "Question: If a shirt costs $12 and is discounted by $3, what is the final price?\nAnswer: $9",
+          "label": "negative"
+        }
+      ],
+      "test_cases": [
+        {
+          "text": "Question: A baker made 18 muffins and sold 7. How many remain?\nAnswer:",
+          "label": "requires_reasoning"
+        }
+      ],
+      "evaluation_criteria": [
+        {
+          "name": "contains_intermediate_steps",
+          "description": "The answer includes intermediate reasoning, not just the final conclusion."
+        },
+        {
+          "name": "reasoning_supports_answer",
+          "description": "The intermediate steps are consistent with the final answer."
+        }
+      ]
+    }
+  ]
+}

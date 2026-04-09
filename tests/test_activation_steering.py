@@ -543,6 +543,202 @@ def test_get_standard_activations_rejects_unknown_model():
         steering.get_standard_activations(model_name="unknown-model")
 
 
+def test_discover_artifact_plugin_paths_includes_builtin_standard_plugin():
+    plugin_paths = steering.discover_artifact_plugin_paths()
+    expected_suffix = ("activation_steering", "artifacts", "models", "gpt2", "standard")
+
+    assert any(Path(path).parts[-len(expected_suffix) :] == expected_suffix for path in plugin_paths)
+    assert steering.STANDARD_ARTIFACT_PLUGIN_PATH.joinpath("plugin.json").is_file()
+
+
+def test_load_model_artifact_bundle_merges_plugin_entries(tmp_path):
+    plugin_root = tmp_path / "artifact-bundles"
+    steering.write_artifact_plugin(
+        plugin_root / "models" / "gpt2" / "base",
+        model_name="gpt2",
+        description="Base bundle",
+        activations=[
+            {
+                "name": "retrieval_augmented_context",
+                "category": "context_engineering",
+                "summary": "Base summary.",
+            },
+            {
+                "name": "scratchpad_context",
+                "category": "context_engineering",
+                "summary": "Scratchpad summary.",
+            },
+        ],
+        feature_specs=[
+            {
+                "name": "chain_of_thought",
+                "model_name": "gpt2",
+                "category": "reasoning_strategy",
+                "summary": "Base reasoning summary.",
+                "extraction_examples": [{"text": "base positive", "label": "positive"}],
+                "test_cases": [{"text": "base test", "label": "requires_reasoning"}],
+                "evaluation_criteria": [{"name": "base", "description": "base"}],
+            }
+        ],
+        controllers=[
+            {
+                "name": "chain_of_thought",
+                "model_name": "gpt2",
+                "category": "reasoning_strategy",
+                "summary": "Base controller summary.",
+                "layer_idx": 1,
+                "vector": [1.0, 0.0],
+            }
+        ],
+    )
+    steering.write_artifact_plugin(
+        plugin_root / "models" / "gpt2" / "override",
+        model_name="gpt2",
+        activations=[
+            {
+                "name": "retrieval_augmented_context",
+                "category": "context_engineering",
+                "summary": "Override summary.",
+            }
+        ],
+        feature_specs=[
+            {
+                "name": "chain_of_thought",
+                "model_name": "gpt2",
+                "category": "reasoning_strategy",
+                "summary": "Override reasoning summary.",
+                "extraction_examples": [{"text": "override positive", "label": "positive"}],
+                "test_cases": [{"text": "override test", "label": "requires_reasoning"}],
+                "evaluation_criteria": [{"name": "override", "description": "override"}],
+            }
+        ],
+        controllers=[
+            {
+                "controller_id": "chain_of_thought",
+                "feature_name": "chain_of_thought",
+                "model_name": "gpt2",
+                "category": "reasoning_strategy",
+                "summary": "Override controller summary.",
+                "layer_idx": 1,
+                "vector": [0.0, 1.0],
+            }
+        ],
+    )
+
+    bundle = steering.load_model_artifact_bundle(model_name="gpt2", plugin_roots=plugin_root)
+
+    assert bundle["model_name"] == "gpt2"
+    assert [plugin["plugin_name"] for plugin in bundle["plugins"]] == ["base", "override"]
+    assert {activation["name"] for activation in bundle["activations"]} == {
+        "retrieval_augmented_context",
+        "scratchpad_context",
+    }
+    retrieval_activation = next(
+        activation for activation in bundle["activations"] if activation["name"] == "retrieval_augmented_context"
+    )
+    assert retrieval_activation["summary"] == "Override summary."
+    feature = next(feature for feature in bundle["feature_specs"] if feature["name"] == "chain_of_thought")
+    assert feature["summary"] == "Override reasoning summary."
+    controller = next(
+        controller for controller in bundle["controllers"] if controller["controller_id"] == "chain_of_thought"
+    )
+    assert controller["summary"] == "Override controller summary."
+
+
+def test_merge_artifact_plugins_writes_merged_bundle(tmp_path):
+    source_root = tmp_path / "source"
+    steering.write_artifact_plugin(
+        source_root / "models" / "gpt2" / "controllers only",
+        model_name="gpt2",
+        metadata={"owner": "discovery-team", "tier": "base"},
+        controllers=[
+            {
+                "name": "chain_of_thought",
+                "model_name": "gpt2",
+                "category": "reasoning_strategy",
+                "summary": "Merged controller summary.",
+                "layer_idx": 1,
+                "vector": [1.0, 0.0],
+            }
+        ],
+    )
+
+    merged_plugin_path = steering.merge_artifact_plugins(
+        tmp_path / "merged" / "models" / "gpt2" / "team pack",
+        model_name="gpt2",
+        plugin_roots=source_root,
+        description="Team merged bundle",
+        metadata={"tier": "merged", "release": "2026.04"},
+    )
+
+    assert merged_plugin_path.joinpath("plugin.json").is_file()
+    merged_bundle = steering.load_model_artifact_bundle(
+        model_name="gpt2",
+        plugin_roots=tmp_path / "merged",
+    )
+    assert merged_bundle["controllers"][0]["controller_id"] == "chain_of_thought"
+    assert merged_bundle["description"] == "Team merged bundle"
+    assert merged_bundle["plugins"][0]["plugin_name"] == "team-pack"
+    assert merged_bundle["metadata"] == {
+        "owner": "discovery-team",
+        "tier": "merged",
+        "release": "2026.04",
+    }
+
+
+def test_load_model_artifact_bundle_rejects_empty_plugin_roots(tmp_path):
+    with pytest.raises(ValueError, match="No artifact plugins found"):
+        steering.load_model_artifact_bundle(model_name="gpt2", plugin_roots=tmp_path)
+
+
+def test_write_artifact_plugin_derives_name_from_sanitized_folder_path(tmp_path):
+    plugin_dir = tmp_path / "plugins" / "models" / "gpt2" / "team pack v1"
+
+    written_path = steering.write_artifact_plugin(
+        plugin_dir,
+        model_name="gpt2",
+        controllers=[
+            {
+                "name": "chain_of_thought",
+                "model_name": "gpt2",
+                "category": "reasoning_strategy",
+                "summary": "Path-derived controller summary.",
+                "layer_idx": 1,
+                "vector": [1.0, 0.0],
+            }
+        ],
+    )
+
+    manifest = json.loads(written_path.joinpath("plugin.json").read_text(encoding="utf-8"))
+    bundle = steering.load_model_artifact_bundle(model_name="gpt2", plugin_roots=tmp_path / "plugins")
+
+    assert "plugin_name" not in manifest
+    assert bundle["plugins"][0]["plugin_name"] == "team-pack-v1"
+
+
+def test_write_artifact_plugin_sanitizes_special_characters_in_folder_path(tmp_path):
+    plugin_dir = tmp_path / "plugins" / "models" / "gpt2" / "team   pack@v1"
+
+    steering.write_artifact_plugin(
+        plugin_dir,
+        model_name="gpt2",
+        controllers=[
+            {
+                "name": "chain_of_thought",
+                "model_name": "gpt2",
+                "category": "reasoning_strategy",
+                "summary": "Sanitized path controller summary.",
+                "layer_idx": 1,
+                "vector": [1.0, 0.0],
+            }
+        ],
+    )
+
+    bundle = steering.load_model_artifact_bundle(model_name="gpt2", plugin_roots=tmp_path / "plugins")
+
+    assert bundle["plugins"][0]["plugin_name"] == "team-pack-v1"
+
+
 def test_feature_example_round_trips_to_dict():
     example = steering.FeatureExample(
         text="Question: 2 + 2?\nAnswer: 4",

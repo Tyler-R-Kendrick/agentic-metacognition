@@ -69,6 +69,27 @@ def test_load_steering_controllers_coerces_integral_max_steps(tmp_path):
     assert controllers[0].max_steps == 2
 
 
+def test_load_artifact_steering_controllers_reads_plugin_bundle(tmp_path, persistent_vectors_path):
+    feature_vectors = json.loads(persistent_vectors_path.read_text(encoding="utf-8"))["feature_vectors"]
+    steering.write_artifact_plugin(
+        tmp_path / "models" / "gpt2" / "shared features",
+        model_name="gpt2",
+        controllers=feature_vectors,
+    )
+
+    controllers = steering.load_artifact_steering_controllers(
+        model_name="gpt2",
+        plugin_roots=tmp_path,
+        task_types_by_controller={"chain_of_thought": ["qa"]},
+    )
+
+    chain_of_thought = next(
+        controller for controller in controllers if controller.controller_id == "chain_of_thought"
+    )
+    assert len(controllers) == 4
+    assert chain_of_thought.task_types == ("qa",)
+
+
 def test_steered_executor_collects_trace_and_runs_selected_controller(
     model, tokenizer, persistent_vectors_path
 ):
