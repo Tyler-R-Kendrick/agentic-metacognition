@@ -80,6 +80,14 @@ from .models import (
     load_model_and_tokenizer,
     tokenize_text,
 )
+from .steering_command import (
+    SteeringResult,
+    SteeringRunConfig,
+    build_steering_feature_spec,
+    generate_synthetic_examples,
+    pick_undiscovered_feature,
+    run_steering,
+)
 from .steering import (
     ActivationSteerer,
     AdaptiveActivationSteerer,
@@ -164,6 +172,12 @@ __all__ = [
     "SteeredExecutor",
     "SteeringController",
     "SteeringFeatureScore",
+    "SteeringResult",
+    "SteeringRunConfig",
+    "build_steering_feature_spec",
+    "generate_synthetic_examples",
+    "pick_undiscovered_feature",
+    "run_steering",
     "tokenize_text",
     "train_probe",
     "VerifierResult",

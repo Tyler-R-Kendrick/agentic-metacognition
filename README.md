@@ -52,7 +52,7 @@ The repository includes Copilot agent skills under `.github/skills/` that expose
 
 | Skill | Description |
 |-------|-------------|
-| [`activation-steering`](.github/skills/activation-steering/SKILL.md) | Build and apply activation steering vectors, compare baseline vs steered outputs, train adaptive probes |
+| [`steering`](.github/skills/steering/SKILL.md) | `/steering` command — run feature discovery for a model and optional feature, auto-generate data, extract vectors, output artifacts |
 | [`feature-discovery`](.github/skills/feature-discovery/SKILL.md) | Define feature specs, discover steering vectors from labeled examples, manage feature catalogs |
 | [`artifact-plugins`](.github/skills/artifact-plugins/SKILL.md) | Create, load, merge, and distribute persistent artifact plugin bundles |
 | [`hybrid-agent`](.github/skills/hybrid-agent/SKILL.md) | Operate the planner/retriever/steered-executor/verifier agent loop with persistent memory |
