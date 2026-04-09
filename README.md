@@ -84,11 +84,19 @@ The package also includes reusable Python modules for defining features to extra
 
 Use `activation_steering.discover_feature_vectors(...)` to build one steering vector per feature spec from its labeled extraction examples, then persist the results with `activation_steering.save_discovered_feature_vectors(...)` or `activation_steering.discover_and_store_feature_vectors(...)`.
 
-The repository also keeps a checked-in minimal-example artifact in source control at `tests/data/minimal_identified_feature_vectors.json`, and the integration test regenerates that file's contents to ensure the stored vectors stay in sync with the discovery flow.
+### Persistent artifact plugins
 
-### Artifact plugin structure
+Persistent artifacts live in a plugin-style directory tree under `activation_steering/artifacts/<model>/<plugin>/`. The built-in GPT-2 starter bundle is checked in at `activation_steering/artifacts/gpt2/standard/`.
 
-Persistent artifacts now also live in a plugin-style directory tree under `activation_steering/artifacts/models/<model>/<plugin>/`. The built-in GPT-2 starter bundle is checked in at `activation_steering/artifacts/models/gpt2/standard/`.
+```text
+activation_steering/artifacts/
+└── <model>/
+    └── <plugin>/
+        ├── plugin.json
+        ├── activations.json
+        ├── feature_specs.json
+        └── controllers.json
+```
 
 Use `activation_steering.load_model_artifact_bundle(...)` to load and merge plugin bundles for a model, `activation_steering.load_artifact_steering_controllers(...)` to load shared controllers from those bundles, `activation_steering.write_artifact_plugin(...)` to create a distributable plugin tree, and `activation_steering.merge_artifact_plugins(...)` to collapse multiple bundles into one shareable pack. Plugin identifiers are derived from the plugin folder path after sanitization rather than from an explicit name field.
 
@@ -98,7 +106,7 @@ See `activation_steering/artifacts/README.md` for the layout, merge behavior, an
 
 Use `HybridMetaCognitionAgent`, `SteeredExecutor`, `InMemorySteeringMemory`, and `load_steering_controllers(...)` to build a reusable hybrid agent where a planner decides when to retrieve context and which persisted controller to apply before the verifier judges the result.
 
-If you pass `artifact_dir=...` to `HybridMetaCognitionAgent`, call `agent.close()` (or use the agent as a context manager) to persist end-of-session runtime artifacts. The agent writes `adaptive_discoveries.json`, a diff-friendly `graph_state.json`, and a `graph_state.svg` visualization for the current session.
+If you pass `artifact_dir=...` to `HybridMetaCognitionAgent`, call `agent.close()` (or use the agent as a context manager) to persist end-of-session runtime artifacts (`adaptive_discoveries.json`, `graph_state.json`, `graph_state.svg`) into the given directory.
 
 ### Neo4j PathRAG / GraphRAG extension
 
