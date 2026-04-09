@@ -6,8 +6,33 @@ Quick validation script for skills - minimal version
 import sys
 import os
 import re
-import yaml
 from pathlib import Path
+
+
+def _parse_simple_frontmatter(text: str) -> dict:
+    """Parse simple YAML frontmatter without requiring PyYAML.
+
+    Handles the subset of YAML used in SKILL.md frontmatter: top-level
+    ``key: value`` pairs where values are plain scalars (strings, numbers,
+    booleans).  Quoted strings are unquoted.  This deliberately does *not*
+    attempt to handle nested mappings, sequences, or multi-line values.
+    """
+    result: dict = {}
+    for line in text.splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        match = re.match(r'^([A-Za-z_][A-Za-z0-9_-]*)\s*:\s*(.*)', line)
+        if not match:
+            continue
+        key = match.group(1)
+        raw_value = match.group(2).strip()
+        # Strip surrounding quotes
+        if len(raw_value) >= 2 and raw_value[0] == raw_value[-1] and raw_value[0] in ('"', "'"):
+            raw_value = raw_value[1:-1]
+        result[key] = raw_value
+    return result
+
 
 def validate_skill(skill_path):
     """Basic validation of a skill"""
@@ -30,12 +55,12 @@ def validate_skill(skill_path):
 
     frontmatter_text = match.group(1)
 
-    # Parse YAML frontmatter
+    # Parse YAML frontmatter (stdlib-only, no PyYAML dependency)
     try:
-        frontmatter = yaml.safe_load(frontmatter_text)
+        frontmatter = _parse_simple_frontmatter(frontmatter_text)
         if not isinstance(frontmatter, dict):
             return False, "Frontmatter must be a YAML dictionary"
-    except yaml.YAMLError as e:
+    except Exception as e:
         return False, f"Invalid YAML in frontmatter: {e}"
 
     # Define allowed properties

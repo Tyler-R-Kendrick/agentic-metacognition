@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any, Sequence
 
 from .artifact_plugins import (
+    _derive_plugin_name,
     discover_artifact_plugin_paths,
     write_artifact_plugin,
     PluginRootInput,
@@ -181,7 +182,9 @@ def pick_undiscovered_feature(
         for plugin_dir in discover_artifact_plugin_paths(
             plugin_roots=artifact_roots, model_name=model_name,
         ):
-            existing_names.add(Path(str(plugin_dir)).name)
+            existing_names.add(
+                _derive_plugin_name(plugin_dir, model_name)
+            )
 
     for spec in all_specs:
         if spec.name not in existing_names:

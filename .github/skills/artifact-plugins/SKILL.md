@@ -23,7 +23,7 @@ Use this skill to manage the persistent, file-backed artifact plugin system that
 activation_steering/artifacts/
 └── <model>/
     └── <plugin>/
-        ├── plugin.json          # Manifest with format_version, description, model
+        ├── plugin.json          # Manifest with schema_version, model_name, etc.
         ├── activations.json     # Labeled activation catalog entries
         ├── feature_specs.json   # Feature specifications with examples
         └── controllers.json     # Named steering controllers with vectors
@@ -91,12 +91,14 @@ merged = merge_artifact_plugins(
 
 ## Plugin manifest format
 
-Each `plugin.json` contains:
+Each `plugin.json` contains fields such as:
 ```json
 {
-  "format_version": 1,
+  "schema_version": 1,
   "description": "Description of what this plugin provides",
-  "model": "gpt2"
+  "model_name": "gpt2",
+  "is_default_model": false,
+  "metadata": {}
 }
 ```
 
