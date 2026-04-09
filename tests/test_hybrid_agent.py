@@ -446,6 +446,8 @@ def test_hybrid_meta_cognition_agent_persists_runtime_artifacts_on_close(tmp_pat
     memory = steering.InMemorySteeringMemory([controller])
 
     class StubExecutor:
+        model_name = "stub-model"
+
         def execute(self, task, plan, context, controller=None, controllers=(), max_new_tokens=80):
             return steering.ExecutorResult(
                 prompt=f"task={task}\ncontext={' | '.join(context)}",
