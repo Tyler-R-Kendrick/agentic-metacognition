@@ -1,9 +1,0 @@
-{
-  "artifacts": {
-    "feature_vectors": "feature_vectors.json"
-  },
-  "description": "Starter persistent controllers discovered from the checked-in minimal feature catalog.",
-  "format_version": 1,
-  "model_name": "gpt2",
-  "plugin_name": "minimal"
-}

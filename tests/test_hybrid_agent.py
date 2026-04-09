@@ -50,10 +50,19 @@ def test_load_steering_controllers_reads_persistent_vectors(persistent_vectors_p
     assert chain_of_thought.decay == pytest.approx(0.8)
 
 
-def test_load_steering_controllers_reads_artifact_plugin_dir(packaged_artifact_root):
-    plugin_dir = packaged_artifact_root / "models" / "gpt2" / "minimal"
+def test_load_steering_controllers_reads_artifact_feature_dir(packaged_artifact_root):
+    feature_dir = packaged_artifact_root / "gpt2" / "chain_of_thought"
 
-    controllers = steering.load_steering_controllers(plugin_dir)
+    controllers = steering.load_steering_controllers(feature_dir)
+
+    assert len(controllers) == 1
+    assert controllers[0].controller_id == "chain_of_thought"
+
+
+def test_load_steering_controllers_reads_artifact_model_dir(packaged_artifact_root):
+    model_dir = packaged_artifact_root / "gpt2"
+
+    controllers = steering.load_steering_controllers(model_dir)
 
     assert len(controllers) == 4
     assert {controller.controller_id for controller in controllers} == {
@@ -64,15 +73,16 @@ def test_load_steering_controllers_reads_artifact_plugin_dir(packaged_artifact_r
     }
 
 
-def test_load_artifact_plugin_controllers_merges_plugin_roots(tmp_path):
+def test_load_artifact_plugin_controllers_merges_feature_roots(tmp_path):
     artifact_root = tmp_path / "artifacts"
-    first_plugin_dir = steering.get_artifact_plugin_dir(
+    # Feature "shared_controller" in base dir
+    base_dir = steering.get_artifact_plugin_dir(
         "gpt2",
-        "base",
+        "shared_controller",
         artifact_root=artifact_root,
     )
-    first_plugin_dir.mkdir(parents=True, exist_ok=True)
-    (first_plugin_dir / steering.ARTIFACT_PLUGIN_FEATURE_VECTORS_NAME).write_text(
+    base_dir.mkdir(parents=True, exist_ok=True)
+    (base_dir / steering.ARTIFACT_PLUGIN_FEATURE_VECTORS_NAME).write_text(
         json.dumps(
             {
                 "feature_vectors": [
@@ -84,6 +94,28 @@ def test_load_artifact_plugin_controllers_merges_plugin_roots(tmp_path):
                         "layer_idx": 1,
                         "vector": [1.0, 0.0],
                     },
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    steering.write_artifact_plugin_manifest(
+        base_dir,
+        model_name="gpt2",
+        feature_name="shared_controller",
+        artifacts={"feature_vectors": steering.ARTIFACT_PLUGIN_FEATURE_VECTORS_NAME},
+    )
+    # Feature "base_only" in its own dir
+    base_only_dir = steering.get_artifact_plugin_dir(
+        "gpt2",
+        "base_only",
+        artifact_root=artifact_root,
+    )
+    base_only_dir.mkdir(parents=True, exist_ok=True)
+    (base_only_dir / steering.ARTIFACT_PLUGIN_FEATURE_VECTORS_NAME).write_text(
+        json.dumps(
+            {
+                "feature_vectors": [
                     {
                         "name": "base_only",
                         "model_name": "gpt2",
@@ -98,19 +130,21 @@ def test_load_artifact_plugin_controllers_merges_plugin_roots(tmp_path):
         encoding="utf-8",
     )
     steering.write_artifact_plugin_manifest(
-        first_plugin_dir,
+        base_only_dir,
         model_name="gpt2",
-        plugin_name="base",
+        feature_name="base_only",
         artifacts={"feature_vectors": steering.ARTIFACT_PLUGIN_FEATURE_VECTORS_NAME},
     )
 
-    second_plugin_dir = steering.get_artifact_plugin_dir(
+    # Second root with override for "shared_controller"
+    override_root = tmp_path / "overrides"
+    override_dir = steering.get_artifact_plugin_dir(
         "gpt2",
-        "override",
-        artifact_root=artifact_root,
+        "shared_controller",
+        artifact_root=override_root,
     )
-    second_plugin_dir.mkdir(parents=True, exist_ok=True)
-    (second_plugin_dir / steering.ARTIFACT_PLUGIN_FEATURE_VECTORS_NAME).write_text(
+    override_dir.mkdir(parents=True, exist_ok=True)
+    (override_dir / steering.ARTIFACT_PLUGIN_FEATURE_VECTORS_NAME).write_text(
         json.dumps(
             {
                 "feature_vectors": [
@@ -128,15 +162,15 @@ def test_load_artifact_plugin_controllers_merges_plugin_roots(tmp_path):
         encoding="utf-8",
     )
     steering.write_artifact_plugin_manifest(
-        second_plugin_dir,
+        override_dir,
         model_name="gpt2",
-        plugin_name="override",
+        feature_name="shared_controller",
         artifacts={"feature_vectors": steering.ARTIFACT_PLUGIN_FEATURE_VECTORS_NAME},
     )
 
     controllers = steering.load_artifact_plugin_controllers(
         "gpt2",
-        artifact_roots=[artifact_root],
+        artifact_roots=[artifact_root, override_root],
     )
 
     assert {controller.controller_id for controller in controllers} == {
@@ -512,15 +546,20 @@ def test_hybrid_meta_cognition_agent_persists_runtime_artifacts_on_close(tmp_pat
         run = agent.run("What is the capital of France?")
 
     assert run.verdict.passed is True
-    plugin_dir = tmp_path / "models" / "stub-model" / steering.DEFAULT_RUNTIME_PLUGIN_NAME
-    manifest_path = plugin_dir / steering.ARTIFACT_PLUGIN_MANIFEST_NAME
-    adaptive_discoveries_path = plugin_dir / "adaptive_discoveries.json"
-    graph_state_path = plugin_dir / "graph_state.json"
-    graph_visualization_path = plugin_dir / "graph_state.svg"
-    assert manifest_path.is_file()
+    model_dir = tmp_path / "stub-model"
+    adaptive_discoveries_path = model_dir / "adaptive_discoveries.json"
+    graph_state_path = model_dir / "graph_state.json"
+    graph_visualization_path = model_dir / "graph_state.svg"
     assert adaptive_discoveries_path.is_file()
     assert graph_state_path.is_file()
     assert graph_visualization_path.is_file()
+
+    # Per-feature directory should be created for the discovered controller
+    feature_dir = model_dir / "retrieval_augmented_context_v1"
+    assert (feature_dir / steering.ARTIFACT_PLUGIN_FEATURE_VECTORS_NAME).is_file()
+    assert (feature_dir / steering.ARTIFACT_PLUGIN_MANIFEST_NAME).is_file()
+    manifest = json.loads((feature_dir / steering.ARTIFACT_PLUGIN_MANIFEST_NAME).read_text(encoding="utf-8"))
+    assert manifest["feature_name"] == "retrieval_augmented_context_v1"
 
     adaptive_discoveries = json.loads(adaptive_discoveries_path.read_text(encoding="utf-8"))
     assert adaptive_discoveries["feature_vector_count"] == 1

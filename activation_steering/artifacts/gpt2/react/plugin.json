@@ -1,0 +1,9 @@
+{
+  "artifacts": {
+    "feature_vectors": "feature_vectors.json"
+  },
+  "description": "Capture prompts or traces that alternate reasoning, action, and observation steps.",
+  "feature_name": "react",
+  "format_version": 1,
+  "model_name": "gpt2"
+}

@@ -1,0 +1,65 @@
+{
+  "format_version": 1,
+  "feature_vector_count": 1,
+  "feature_vectors": [
+    {
+      "name": "react",
+      "model_name": "gpt2",
+      "category": "cognitive_architecture",
+      "summary": "Capture prompts or traces that alternate reasoning, action, and observation steps.",
+      "layer_idx": 1,
+      "vector": [
+        0.009458119049668312,
+        0.17192208766937256,
+        0.02915099449455738,
+        0.10318081825971603,
+        0.00406648451462388,
+        -0.13988523185253143,
+        -0.08169049769639969,
+        -0.13903389871120453,
+        0.0916927382349968,
+        -0.024896083399653435,
+        -0.03399248048663139,
+        0.18123917281627655,
+        -0.3128695785999298,
+        -0.42388099431991577,
+        -0.015619242563843727,
+        0.1453855186700821,
+        -0.26125770807266235,
+        -0.048855364322662354,
+        0.19101431965827942,
+        -0.10023507475852966,
+        -0.20522984862327576,
+        0.16792535781860352,
+        -0.15081413090229034,
+        0.04748362675309181,
+        0.3816070258617401,
+        0.0528063103556633,
+        0.05325450375676155,
+        0.3714522123336792,
+        0.01585533283650875,
+        -0.19217531383037567,
+        -0.05758153647184372,
+        0.1705223172903061
+      ],
+      "vector_norm": 1.0,
+      "vector_size": 32,
+      "positive_example_count": 1,
+      "negative_example_count": 1,
+      "test_case_count": 1,
+      "evaluation_criteria": [
+        {
+          "name": "contains_action_step",
+          "description": "The reasoning trace explicitly includes an action step.",
+          "metadata": {}
+        },
+        {
+          "name": "contains_observation_step",
+          "description": "The trace records an observation that follows the action.",
+          "metadata": {}
+        }
+      ],
+      "metadata": {}
+    }
+  ]
+}

@@ -1,0 +1,65 @@
+{
+  "format_version": 1,
+  "feature_vector_count": 1,
+  "feature_vectors": [
+    {
+      "name": "chain_of_thought",
+      "model_name": "gpt2",
+      "category": "reasoning_strategy",
+      "summary": "Capture responses that show intermediate reasoning before the final answer.",
+      "layer_idx": 1,
+      "vector": [
+        0.1532568782567978,
+        -0.2451971471309662,
+        0.05958960950374603,
+        0.0925271213054657,
+        0.04284444823861122,
+        -0.018363844603300095,
+        -0.24640649557113647,
+        -0.12466738373041153,
+        0.22098270058631897,
+        0.024395354092121124,
+        -0.3664386570453644,
+        0.16884192824363708,
+        -0.3182460367679596,
+        -0.16804319620132446,
+        -0.02440546080470085,
+        0.153747096657753,
+        0.08612526208162308,
+        0.2513153553009033,
+        -0.05480623245239258,
+        -0.21809989213943481,
+        -0.33735793828964233,
+        0.24409949779510498,
+        0.11410935968160629,
+        -0.0323546938598156,
+        -0.041059594601392746,
+        0.0800827294588089,
+        0.035753510892391205,
+        0.14317922294139862,
+        0.2699146270751953,
+        0.011918996460735798,
+        0.1754632592201233,
+        -0.1327003836631775
+      ],
+      "vector_norm": 1.0,
+      "vector_size": 32,
+      "positive_example_count": 1,
+      "negative_example_count": 1,
+      "test_case_count": 1,
+      "evaluation_criteria": [
+        {
+          "name": "contains_intermediate_steps",
+          "description": "The answer includes intermediate reasoning, not just the final conclusion.",
+          "metadata": {}
+        },
+        {
+          "name": "reasoning_supports_answer",
+          "description": "The intermediate steps are consistent with the final answer.",
+          "metadata": {}
+        }
+      ],
+      "metadata": {}
+    }
+  ]
+}

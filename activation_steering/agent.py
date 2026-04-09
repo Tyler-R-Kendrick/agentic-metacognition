@@ -13,7 +13,7 @@ import torch
 
 from .artifact_plugins import (
     ARTIFACT_PLUGIN_FEATURE_VECTORS_NAME,
-    DEFAULT_RUNTIME_PLUGIN_NAME,
+    ARTIFACT_PLUGIN_MANIFEST_NAME,
     get_artifact_plugin_dir,
     load_artifact_plugin_payloads,
     merge_artifact_plugin_payloads,
@@ -278,16 +278,16 @@ def load_artifact_plugin_controllers(
     model_name: str,
     *,
     artifact_roots: Sequence[str | Path] | None = None,
-    plugin_names: Sequence[str] | None = None,
+    feature_names: Sequence[str] | None = None,
     default_alpha: float = 1.5,
     default_decay: float = 1.0,
     task_types_by_controller: Mapping[str, Sequence[str]] | None = None,
 ) -> list[SteeringController]:
-    """Load and merge artifact plugin controllers for one model."""
+    """Load and merge artifact feature controllers for one model."""
     payload = load_artifact_plugin_payloads(
         model_name,
         artifact_roots=artifact_roots,
-        plugin_names=plugin_names,
+        feature_names=feature_names,
     )
     return _build_controllers_from_payload(
         payload,
@@ -1199,36 +1199,41 @@ class HybridMetaCognitionAgent:
         if destination is None:
             return None
         model_name = str(getattr(self.executor, "model_name", "unknown-model"))
-        plugin_dir = get_artifact_plugin_dir(
-            model_name,
-            DEFAULT_RUNTIME_PLUGIN_NAME,
-            artifact_root=destination,
-        )
-        plugin_dir.mkdir(parents=True, exist_ok=True)
+        model_dir = Path(destination) / model_name
+        model_dir.mkdir(parents=True, exist_ok=True)
         runtime_discoveries = _build_runtime_discoveries_payload(self.memory)
         graph_payload = _build_runtime_graph_payload(self.memory.run_history)
-        artifacts = {
+        artifacts: dict[str, Path] = {
             "adaptive_discoveries": _write_json_artifact(
-                plugin_dir / "adaptive_discoveries.json",
+                model_dir / "adaptive_discoveries.json",
                 runtime_discoveries,
             ),
-            "graph_state": _write_json_artifact(plugin_dir / "graph_state.json", graph_payload),
+            "graph_state": _write_json_artifact(model_dir / "graph_state.json", graph_payload),
             "graph_visualization": _write_graph_visualization_artifact(
-                plugin_dir / "graph_state.svg",
+                model_dir / "graph_state.svg",
                 graph_payload,
             ),
         }
-        artifacts["manifest"] = write_artifact_plugin_manifest(
-            plugin_dir,
-            model_name=model_name,
-            plugin_name=DEFAULT_RUNTIME_PLUGIN_NAME,
-            description="Runtime artifacts persisted by HybridMetaCognitionAgent.",
-            artifacts={
-                "adaptive_discoveries": "adaptive_discoveries.json",
-                "graph_state": "graph_state.json",
-                "graph_visualization": "graph_state.svg",
-            },
-        )
+        # Write a per-feature directory for each discovered controller
+        for fv in runtime_discoveries.get("feature_vectors", ()):
+            feature_name = str(fv.get("controller_id", fv.get("name", "")))
+            if not feature_name:
+                continue
+            feature_dir = model_dir / feature_name
+            feature_dir.mkdir(parents=True, exist_ok=True)
+            fv_path = _write_json_artifact(
+                feature_dir / ARTIFACT_PLUGIN_FEATURE_VECTORS_NAME,
+                {"format_version": 1, "feature_vector_count": 1, "feature_vectors": [fv]},
+            )
+            manifest_path = write_artifact_plugin_manifest(
+                feature_dir,
+                model_name=model_name,
+                feature_name=feature_name,
+                description=str(fv.get("summary", "")),
+                artifacts={"feature_vectors": ARTIFACT_PLUGIN_FEATURE_VECTORS_NAME},
+            )
+            artifacts[f"feature:{feature_name}"] = fv_path
+            artifacts[f"manifest:{feature_name}"] = manifest_path
         return artifacts
 
     def close(self) -> dict[str, Path] | None:

@@ -77,29 +77,24 @@ The package also includes reusable Python modules for defining features to extra
 
 Use `activation_steering.discover_feature_vectors(...)` to build one steering vector per feature spec from its labeled extraction examples, then persist the results with `activation_steering.save_discovered_feature_vectors(...)` or `activation_steering.discover_and_store_feature_vectors(...)`.
 
-For reusable distribution, persist extracted controllers as artifact plugins under `activation_steering/artifacts/models/<model>/<plugin>/` with `activation_steering.save_discovered_feature_vector_plugin(...)` or `activation_steering.discover_and_store_feature_vector_plugin(...)`. The checked-in starter plugin lives at `activation_steering/artifacts/models/gpt2/minimal/` and the legacy regression fixture remains at `tests/data/minimal_identified_feature_vectors.json`.
+For reusable distribution, persist each extracted feature in its own directory under `activation_steering/artifacts/<model>/<feature>/` with `activation_steering.save_discovered_feature_vector_plugin(...)` or `activation_steering.discover_and_store_feature_vector_plugin(...)`. The checked-in starter features live at `activation_steering/artifacts/gpt2/` and the legacy regression fixture remains at `tests/data/minimal_identified_feature_vectors.json`.
 
-### Persistent artifact plugins
+### Persistent artifact features
 
-Artifact plugins let you package model-specific persistent artifacts in a shareable directory tree that can be copied, merged, and reloaded later:
+Persistent artifacts are organised per model, with one directory per extracted feature — similar to agent-skills. Each feature is independently shareable and mergeable:
 
 ```text
 activation_steering/artifacts/
-└── models/
-    └── <model>/
-        └── <plugin>/
-            ├── plugin.json
-            ├── feature_vectors.json
-            ├── adaptive_discoveries.json
-            ├── graph_state.json
-            └── graph_state.svg
+└── <model>/
+    └── <feature>/
+        ├── plugin.json
+        └── feature_vectors.json
 ```
 
 - `feature_vectors.json` is the controller payload consumed by `load_steering_controllers(...)`.
-- `plugin.json` describes the plugin and the artifact files it contains.
-- Runtime files are optional, but keeping them beside controller payloads makes later sharing and merging easier.
+- `plugin.json` describes the feature and the artifact files it contains.
 
-Load one plugin by path with `activation_steering.load_steering_controllers(...)`, or merge all plugins for a model across one or more roots with `activation_steering.load_artifact_plugin_controllers(model_name=..., artifact_roots=[...])`.
+Load one feature by path with `activation_steering.load_steering_controllers(...)`, or merge all features for a model across one or more roots with `activation_steering.load_artifact_plugin_controllers(model_name=..., artifact_roots=[...])`.
 
 See [`docs/artifact_plugins.md`](docs/artifact_plugins.md) for the create/distribute/merge workflow.
 
@@ -107,7 +102,7 @@ See [`docs/artifact_plugins.md`](docs/artifact_plugins.md) for the create/distri
 
 Use `HybridMetaCognitionAgent`, `SteeredExecutor`, `InMemorySteeringMemory`, and `load_steering_controllers(...)` to build a reusable hybrid agent where a planner decides when to retrieve context and which persisted controller to apply before the verifier judges the result.
 
-If you pass `artifact_dir=...` to `HybridMetaCognitionAgent`, call `agent.close()` (or use the agent as a context manager) to persist end-of-session runtime artifacts into `artifact_dir/models/<executor.model_name>/runtime/`. The agent writes `plugin.json`, `adaptive_discoveries.json`, a diff-friendly `graph_state.json`, and a `graph_state.svg` visualization for the current session.
+If you pass `artifact_dir=...` to `HybridMetaCognitionAgent`, call `agent.close()` (or use the agent as a context manager) to persist end-of-session runtime artifacts into `artifact_dir/<executor.model_name>/`. The agent writes session-level `adaptive_discoveries.json`, `graph_state.json`, and `graph_state.svg`, plus one per-feature directory for each discovered controller.
 
 ### Neo4j PathRAG / GraphRAG extension
 

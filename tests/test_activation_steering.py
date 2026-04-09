@@ -743,7 +743,7 @@ def test_discover_and_store_feature_vectors_runs_minimal_flow(tokenizer, tmp_pat
     assert all(vector.vector.shape == (model.config.n_embd,) for vector in discovered_vectors)
 
 
-def test_discover_and_store_feature_vector_plugin_writes_plugin_layout(tokenizer, tmp_path):
+def test_discover_and_store_feature_vector_plugin_writes_per_feature_layout(tokenizer, tmp_path):
     model = make_gpt2_model(tokenizer)
     feature_specs = steering.get_standard_feature_specs()
 
@@ -755,18 +755,18 @@ def test_discover_and_store_feature_vector_plugin_writes_plugin_layout(tokenizer
         device="cpu",
         artifact_root=tmp_path,
         model_name="gpt2",
-        plugin_name="generated",
-        description="Generated from the minimal feature catalog.",
     )
 
-    plugin_dir = tmp_path / "models" / "gpt2" / "generated"
-    payload_path = plugin_dir / steering.ARTIFACT_PLUGIN_FEATURE_VECTORS_NAME
-    manifest_path = plugin_dir / steering.ARTIFACT_PLUGIN_MANIFEST_NAME
-    assert payload_path.is_file()
-    assert manifest_path.is_file()
     assert len(discovered_vectors) == len(feature_specs)
-    payload = json.loads(payload_path.read_text(encoding="utf-8"))
-    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    assert payload["feature_vector_count"] == len(feature_specs)
-    assert manifest["plugin_name"] == "generated"
-    assert manifest["model_name"] == "gpt2"
+    for vector in discovered_vectors:
+        feature_dir = tmp_path / "gpt2" / vector.name
+        payload_path = feature_dir / steering.ARTIFACT_PLUGIN_FEATURE_VECTORS_NAME
+        manifest_path = feature_dir / steering.ARTIFACT_PLUGIN_MANIFEST_NAME
+        assert payload_path.is_file(), f"Missing feature_vectors.json for {vector.name}"
+        assert manifest_path.is_file(), f"Missing plugin.json for {vector.name}"
+        payload = json.loads(payload_path.read_text(encoding="utf-8"))
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        assert payload["feature_vector_count"] == 1
+        assert payload["feature_vectors"][0]["name"] == vector.name
+        assert manifest["feature_name"] == vector.name
+        assert manifest["model_name"] == "gpt2"

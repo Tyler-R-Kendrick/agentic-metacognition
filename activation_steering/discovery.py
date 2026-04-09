@@ -396,23 +396,28 @@ def save_discovered_feature_vector_plugin(
     artifact_root: str | Path,
     *,
     model_name: str,
-    plugin_name: str,
-    description: str | None = None,
-) -> Path:
-    """Persist discovered feature vectors in the shared artifact plugin layout."""
-    plugin_dir = get_artifact_plugin_dir(model_name, plugin_name, artifact_root=artifact_root)
-    payload_path = save_discovered_feature_vectors(
-        feature_vectors,
-        plugin_dir / ARTIFACT_PLUGIN_FEATURE_VECTORS_NAME,
-    )
-    write_artifact_plugin_manifest(
-        plugin_dir,
-        model_name=model_name,
-        plugin_name=plugin_name,
-        description=description,
-        artifacts={"feature_vectors": ARTIFACT_PLUGIN_FEATURE_VECTORS_NAME},
-    )
-    return payload_path
+) -> list[Path]:
+    """Persist each discovered feature vector in its own per-feature artifact directory.
+
+    Creates ``<artifact_root>/<model_name>/<feature.name>/`` for every vector.
+    Returns the list of written ``feature_vectors.json`` paths.
+    """
+    vectors = list(feature_vectors)
+    if not vectors:
+        raise ValueError("feature_vectors must contain at least one discovered vector.")
+    written: list[Path] = []
+    for vector in vectors:
+        feature_dir = get_artifact_plugin_dir(model_name, vector.name, artifact_root=artifact_root)
+        payload_path = save_discovered_feature_vectors([vector], feature_dir / ARTIFACT_PLUGIN_FEATURE_VECTORS_NAME)
+        write_artifact_plugin_manifest(
+            feature_dir,
+            model_name=model_name,
+            feature_name=vector.name,
+            description=vector.summary,
+            artifacts={"feature_vectors": ARTIFACT_PLUGIN_FEATURE_VECTORS_NAME},
+        )
+        written.append(payload_path)
+    return written
 
 
 def discover_and_store_feature_vectors(
@@ -444,10 +449,8 @@ def discover_and_store_feature_vector_plugin(
     artifact_root: str | Path,
     *,
     model_name: str,
-    plugin_name: str,
-    description: str | None = None,
 ) -> list[DiscoveredFeatureVector]:
-    """Run discovery and persist the results in the shared artifact plugin layout."""
+    """Run discovery and persist each result as its own feature artifact directory."""
     discovered_vectors = discover_feature_vectors(
         feature_specs=feature_specs,
         layer_idx=layer_idx,
@@ -459,7 +462,5 @@ def discover_and_store_feature_vector_plugin(
         discovered_vectors,
         artifact_root,
         model_name=model_name,
-        plugin_name=plugin_name,
-        description=description,
     )
     return discovered_vectors

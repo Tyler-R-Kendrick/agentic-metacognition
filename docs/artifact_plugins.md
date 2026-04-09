@@ -1,32 +1,25 @@
 # Artifact plugins
 
-Persistent artifacts can be packaged per model as shareable plugins under a common directory layout:
+Persistent artifacts are organised per model as shareable per-feature directories — similar to agent-skills. Each feature is independently distributable and mergeable:
 
 ```text
 <artifact-root>/
-└── models/
-    └── <model-name>/
-        └── <plugin-name>/
-            ├── plugin.json
-            ├── feature_vectors.json
-            ├── adaptive_discoveries.json
-            ├── graph_state.json
-            └── graph_state.svg
+└── <model-name>/
+    └── <feature-name>/
+        ├── plugin.json
+        └── feature_vectors.json
 ```
 
-Only `plugin.json` and `feature_vectors.json` are required for controller reuse. The runtime files are optional but recommended when you want to preserve the provenance that produced the controllers.
+Only `plugin.json` and `feature_vectors.json` are required for controller reuse.
 
 ## File roles
 
-- `plugin.json`: plugin metadata and the artifact files present in the directory
-- `feature_vectors.json`: persisted discovered controllers or feature vectors
-- `adaptive_discoveries.json`: learned interaction features and controller summaries from runtime use
-- `graph_state.json`: diff-friendly graph snapshot for a run or merged session
-- `graph_state.svg`: visualization companion for `graph_state.json`
+- `plugin.json`: feature metadata and the artifact files present in the directory
+- `feature_vectors.json`: persisted discovered controller / feature vector for this feature
 
-## Create a plugin
+## Create features
 
-Generate controllers and save them directly into the plugin layout:
+Generate controllers and save them directly into the per-feature layout:
 
 ```python
 import activation_steering as steering
@@ -39,27 +32,27 @@ steering.discover_and_store_feature_vector_plugin(
     device="cpu",
     artifact_root="shared-artifacts",
     model_name="gpt2",
-    plugin_name="retrieval-baseline",
-    description="Controllers extracted from the retrieval-focused starter catalog.",
 )
 ```
 
+This creates one directory per feature spec (e.g. `shared-artifacts/gpt2/chain_of_thought/`, `shared-artifacts/gpt2/few_shot_prompting/`, etc.).
+
 If you already have `DiscoveredFeatureVector` objects, use `save_discovered_feature_vector_plugin(...)` instead.
 
-## Distribute a plugin
+## Distribute a feature
 
-Copy or publish the whole `<plugin-name>/` directory. The plugin is self-contained, so it can live:
+Copy or publish the whole `<feature-name>/` directory. The feature is self-contained, so it can live:
 
 - inside this repository under `activation_steering/artifacts/`
 - in another repository
 - in a shared filesystem location
 - inside a release artifact or zip file
 
-As long as the directory lands under `models/<model-name>/<plugin-name>/`, the merge helpers can discover it.
+As long as the directory lands under `<model-name>/<feature-name>/`, the merge helpers can discover it.
 
-## Merge plugins
+## Merge features
 
-To load every plugin available for one model from one or more roots:
+To load every feature available for one model from one or more roots:
 
 ```python
 controllers = steering.load_artifact_plugin_controllers(
@@ -71,15 +64,23 @@ controllers = steering.load_artifact_plugin_controllers(
 )
 ```
 
-The loader merges every `feature_vectors.json` file it finds for that model. If two plugins define the same controller id or feature name, the later plugin in traversal order replaces the earlier one. Use distinct plugin names to keep contributions isolated, and only rely on replacement when you intentionally want an override.
+The loader merges every `feature_vectors.json` file it finds for that model. If two roots define the same feature name, the later root in traversal order replaces the earlier one. Use distinct feature names to keep contributions isolated, and only rely on replacement when you intentionally want an override.
 
-## Load a single plugin
+## Load a single feature
 
-Use `load_steering_controllers(...)` with a specific plugin directory:
+Use `load_steering_controllers(...)` with a specific feature directory:
 
 ```python
 controllers = steering.load_steering_controllers(
-    "activation_steering/artifacts/models/gpt2/minimal"
+    "activation_steering/artifacts/gpt2/chain_of_thought"
+)
+```
+
+Or load all features for a model directory:
+
+```python
+controllers = steering.load_steering_controllers(
+    "activation_steering/artifacts/gpt2"
 )
 ```
 
@@ -88,7 +89,7 @@ controllers = steering.load_steering_controllers(
 `HybridMetaCognitionAgent(..., artifact_dir=...)` persists runtime artifacts into:
 
 ```text
-<artifact_dir>/models/<executor.model_name>/runtime/
+<artifact_dir>/<executor.model_name>/
 ```
 
-That output already matches the plugin layout, so you can copy the resulting `runtime/` directory, rename it, or merge it with other plugin roots later.
+Session-level files (`adaptive_discoveries.json`, `graph_state.json`, `graph_state.svg`) go at the model level. Each discovered controller also gets its own per-feature directory with `feature_vectors.json` and `plugin.json`, so the output is directly shareable as feature artifacts.
