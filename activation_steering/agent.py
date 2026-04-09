@@ -11,17 +11,9 @@ from uuid import uuid4
 import networkx as nx
 import torch
 
-from .artifact_plugins import (
-    ARTIFACT_PLUGIN_FEATURE_VECTORS_NAME,
-    ARTIFACT_PLUGIN_MANIFEST_NAME,
-    get_artifact_plugin_dir,
-    load_artifact_plugin_payloads,
-    merge_artifact_plugin_payloads,
-    resolve_artifact_plugin_dirs,
-    write_artifact_plugin_manifest,
-)
-from .graphrag import GraphTaskPlan
 from .discovery import ObservedInteractionFeature, discover_interaction_features
+from .artifact_plugins import load_model_artifact_bundle
+from .graphrag import GraphTaskPlan
 from .models import DEFAULT_MAX_NEW_TOKENS, get_last_token_hidden, generate
 from .steering import generate_with_decaying_steering, generate_with_steering
 
@@ -204,12 +196,12 @@ def _coerce_controller_payloads(payload: Mapping[str, Any]) -> list[dict[str, An
     raise ValueError("Expected a payload with either 'feature_vectors' or 'controllers'.")
 
 
-def _build_controllers_from_payload(
+def _build_steering_controllers(
     payload: Mapping[str, Any],
     *,
     default_alpha: float,
     default_decay: float,
-    task_types_by_controller: Mapping[str, Sequence[str]] | None = None,
+    task_types_by_controller: Mapping[str, Sequence[str]] | None,
 ) -> list[SteeringController]:
     task_types_by_controller = task_types_by_controller or {}
     controllers = []
@@ -217,7 +209,9 @@ def _build_controllers_from_payload(
         controller_id_value = entry.get("controller_id", entry.get("name"))
         feature_name_value = entry.get("feature_name", entry.get("name"))
         if controller_id_value is None or feature_name_value is None:
-            raise ValueError("Each persisted controller entry must include 'controller_id' or 'name'.")
+            raise ValueError(
+                "Each persisted controller entry must include 'controller_id' or 'name'."
+            )
         controller_id = str(controller_id_value)
         feature_name = str(feature_name_value)
         task_types = tuple(task_types_by_controller.get(controller_id, ()))
@@ -249,24 +243,8 @@ def load_steering_controllers(
     task_types_by_controller: Mapping[str, Sequence[str]] | None = None,
 ) -> list[SteeringController]:
     """Load reusable steering controllers from persisted discovered feature vectors."""
-    path = Path(input_path)
-    if path.is_dir():
-        plugin_dirs = resolve_artifact_plugin_dirs(path)
-        if plugin_dirs:
-            payload = merge_artifact_plugin_payloads(
-                json.loads(
-                    (plugin_dir / ARTIFACT_PLUGIN_FEATURE_VECTORS_NAME).read_text(encoding="utf-8")
-                )
-                for plugin_dir in plugin_dirs
-                if (plugin_dir / ARTIFACT_PLUGIN_FEATURE_VECTORS_NAME).is_file()
-            )
-            if payload["feature_vector_count"] == 0:
-                raise FileNotFoundError(f"No artifact plugin payloads found under {path}.")
-        else:
-            raise FileNotFoundError(f"No artifact plugin payloads found under {path}.")
-    else:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    return _build_controllers_from_payload(
+    payload = json.loads(Path(input_path).read_text(encoding="utf-8"))
+    return _build_steering_controllers(
         payload,
         default_alpha=default_alpha,
         default_decay=default_decay,
@@ -274,23 +252,18 @@ def load_steering_controllers(
     )
 
 
-def load_artifact_plugin_controllers(
-    model_name: str,
+def load_artifact_steering_controllers(
+    model_name: str | None = None,
     *,
-    artifact_roots: Sequence[str | Path] | None = None,
-    feature_names: Sequence[str] | None = None,
+    plugin_roots: Sequence[str | Path] | str | Path | None = None,
     default_alpha: float = 1.5,
     default_decay: float = 1.0,
     task_types_by_controller: Mapping[str, Sequence[str]] | None = None,
 ) -> list[SteeringController]:
-    """Load and merge artifact feature controllers for one model."""
-    payload = load_artifact_plugin_payloads(
-        model_name,
-        artifact_roots=artifact_roots,
-        feature_names=feature_names,
-    )
-    return _build_controllers_from_payload(
-        payload,
+    """Load merged steering controllers from model artifact plugins."""
+    bundle = load_model_artifact_bundle(model_name=model_name, plugin_roots=plugin_roots)
+    return _build_steering_controllers(
+        {"controllers": bundle["controllers"]},
         default_alpha=default_alpha,
         default_decay=default_decay,
         task_types_by_controller=task_types_by_controller,
@@ -1198,42 +1171,20 @@ class HybridMetaCognitionAgent:
         close_graph_store = getattr(self.graph_store, "close", None)
         if destination is None:
             return None
-        model_name = str(getattr(self.executor, "model_name", "unknown-model"))
-        model_dir = Path(destination) / model_name
-        model_dir.mkdir(parents=True, exist_ok=True)
+        destination.mkdir(parents=True, exist_ok=True)
         runtime_discoveries = _build_runtime_discoveries_payload(self.memory)
         graph_payload = _build_runtime_graph_payload(self.memory.run_history)
-        artifacts: dict[str, Path] = {
+        artifacts = {
             "adaptive_discoveries": _write_json_artifact(
-                model_dir / "adaptive_discoveries.json",
+                destination / "adaptive_discoveries.json",
                 runtime_discoveries,
             ),
-            "graph_state": _write_json_artifact(model_dir / "graph_state.json", graph_payload),
+            "graph_state": _write_json_artifact(destination / "graph_state.json", graph_payload),
             "graph_visualization": _write_graph_visualization_artifact(
-                model_dir / "graph_state.svg",
+                destination / "graph_state.svg",
                 graph_payload,
             ),
         }
-        # Write a per-feature directory for each discovered controller
-        for fv in runtime_discoveries.get("feature_vectors", ()):
-            feature_name = str(fv.get("controller_id", fv.get("name", "")))
-            if not feature_name:
-                continue
-            feature_dir = model_dir / feature_name
-            feature_dir.mkdir(parents=True, exist_ok=True)
-            fv_path = _write_json_artifact(
-                feature_dir / ARTIFACT_PLUGIN_FEATURE_VECTORS_NAME,
-                {"format_version": 1, "feature_vector_count": 1, "feature_vectors": [fv]},
-            )
-            manifest_path = write_artifact_plugin_manifest(
-                feature_dir,
-                model_name=model_name,
-                feature_name=feature_name,
-                description=str(fv.get("summary", "")),
-                artifacts={"feature_vectors": ARTIFACT_PLUGIN_FEATURE_VECTORS_NAME},
-            )
-            artifacts[f"feature:{feature_name}"] = fv_path
-            artifacts[f"manifest:{feature_name}"] = manifest_path
         return artifacts
 
     def close(self) -> dict[str, Path] | None:

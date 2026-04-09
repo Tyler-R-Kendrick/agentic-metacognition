@@ -46,9 +46,9 @@ The repo also includes a Copilot setup workflow at `.github/workflows/copilot-se
 
 A daily GitHub Agentic Workflow source lives at `.github/workflows/daily-gh-aw-training.md`. It researches the repository's training artifacts for missing feature-extraction opportunities, then opens one delegated Copilot issue for the best candidate. The repository also includes a `gh-aw` Copilot skill under `.github/skills/gh-aw/` with command reference docs for the CLI surface.
 
-### Notebook example
+### Notebook examples
 
-Open `notebooks/minimal_activation_steering.ipynb` to run the minimal end-to-end use case. The notebook defines its own sample prompts and imports the shared `activation_steering` library helpers directly.
+Open `notebooks/minimal_activation_steering.ipynb` to run the minimal end-to-end use case. The notebook now walks through the setup, contrastive examples, steering-vector construction, and baseline-versus-steered comparison step by step.
 
 Open `notebooks/hybrid_meta_cognition_agent.ipynb` for a reusable hybrid-agent example that:
 
@@ -56,6 +56,13 @@ Open `notebooks/hybrid_meta_cognition_agent.ipynb` for a reusable hybrid-agent e
 - reloads them as named controllers
 - routes a task through planner, retrieval, steering, verification, and memory write-back
 - keeps the demo logic in the notebook while using the shared library implementation
+
+Open `notebooks/adaptive_feature_steering.ipynb` for an explanatory local demo of adaptive feature steering:
+
+- discovering a new interaction feature from a chat transcript
+- monitoring drift from a goal that depends on that discovered feature
+- adaptively steering toward the feature when the draft drifts away from the goal
+- adaptively steering away from the feature when the goal changes
 
 ### Inspiration
 
@@ -97,6 +104,14 @@ activation_steering/artifacts/
 Load one feature by path with `activation_steering.load_steering_controllers(...)`, or merge all features for a model across one or more roots with `activation_steering.load_artifact_plugin_controllers(model_name=..., artifact_roots=[...])`.
 
 See [`docs/artifact_plugins.md`](docs/artifact_plugins.md) for the create/distribute/merge workflow.
+
+### Artifact plugin structure
+
+Persistent artifacts now also live in a plugin-style directory tree under `activation_steering/artifacts/models/<model>/<plugin>/`. The built-in GPT-2 starter bundle is checked in at `activation_steering/artifacts/models/gpt2/standard/`.
+
+Use `activation_steering.load_model_artifact_bundle(...)` to load and merge plugin bundles for a model, `activation_steering.load_artifact_steering_controllers(...)` to load shared controllers from those bundles, `activation_steering.write_artifact_plugin(...)` to create a distributable plugin tree, and `activation_steering.merge_artifact_plugins(...)` to collapse multiple bundles into one shareable pack. Plugin identifiers are derived from the plugin folder path after sanitization rather than from an explicit name field.
+
+See `activation_steering/artifacts/README.md` for the layout, merge behavior, and a creation/distribution workflow.
 
 ### Hybrid agent library
 
