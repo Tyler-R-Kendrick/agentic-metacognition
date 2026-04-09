@@ -8,7 +8,7 @@ Persistent artifacts are organized as model-scoped plugins so they can be copied
 activation_steering/artifacts/
 └── models/
     └── <model_name>/
-        └── <plugin_name>/
+        └── <plugin_folder>/
             ├── plugin.json
             ├── activations.json      # optional
             ├── feature_specs.json    # optional
@@ -28,6 +28,8 @@ activation_steering/artifacts/models/gpt2/standard/
 - `feature_specs.json`: reusable extraction feature definitions for the model
 - `controllers.json`: persisted discovered feature vectors that can be loaded as steering controllers
 
+The plugin identifier is not user-specified. It is derived from the plugin folder path under the model directory after sanitization.
+
 All plugin files are optional except `plugin.json`, so a shared bundle can contain only the artifacts it contributes.
 
 ## Merge behavior
@@ -43,8 +45,9 @@ This makes it easy to keep a stable base bundle and layer team-local or experime
 ## Create a plugin bundle
 
 1. Discover or collect the artifacts you want to share for one model.
-2. Write them into a plugin root with `activation_steering.write_artifact_plugin(...)`.
-3. Commit or archive the resulting `models/<model>/<plugin>/` directory.
+2. Choose the destination plugin directory under `models/<model>/...`.
+3. Write the bundle into that directory with `activation_steering.write_artifact_plugin(...)`.
+4. Commit or archive the resulting plugin directory.
 
 Typical inputs:
 
@@ -65,7 +68,7 @@ Typical inputs:
 Use `activation_steering.merge_artifact_plugins(...)` when you want to collapse several roots into one plugin tree for shipping:
 
 1. collect the source roots you want to combine
-2. call `merge_artifact_plugins(...)` with the target output directory and model name
-3. distribute the generated `models/<model>/<merged_plugin>/` directory
+2. call `merge_artifact_plugins(...)` with the target plugin directory and model name
+3. distribute the generated plugin directory
 
 This is useful for publishing a curated bundle after several people independently discover new features for the same model.

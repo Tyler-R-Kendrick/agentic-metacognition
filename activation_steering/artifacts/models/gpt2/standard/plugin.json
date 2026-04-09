@@ -1,6 +1,5 @@
 {
   "schema_version": 1,
-  "plugin_name": "standard",
   "model_name": "gpt2",
   "description": "Starter persistent artifacts for a single GPT-2 style causal language model.",
   "is_default_model": true,

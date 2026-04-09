@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import json
+import re
 from functools import lru_cache
 from importlib.resources import files
 from importlib.resources.abc import Traversable
@@ -49,6 +50,35 @@ def _read_json(path: PluginDirectory) -> dict[str, Any]:
 def _is_plugin_dir(path: PluginDirectory) -> bool:
     """Return True when the directory contains the required plugin manifest."""
     return path.is_dir() and path.joinpath(ARTIFACT_PLUGIN_MANIFEST).is_file()
+
+
+def _sanitize_plugin_path(value: str) -> str:
+    sanitized = re.sub(r"[^A-Za-z0-9._-]+", "-", value.strip().replace("\\", "/"))
+    sanitized = re.sub(r"-{2,}", "-", sanitized).strip("-._")
+    if not sanitized:
+        raise ValueError("Plugin folder path must produce a non-empty sanitized identifier.")
+    return sanitized
+
+
+def _derive_plugin_name(plugin_dir: PluginDirectory, model_name: str) -> str:
+    path = Path(str(plugin_dir))
+    model_indices = [index for index, part in enumerate(path.parts) if part == model_name]
+    if model_indices:
+        relative_parts = path.parts[model_indices[-1] + 1 :]
+    else:
+        relative_parts = (path.name,)
+    if not relative_parts:
+        raise ValueError("Plugin directory must include a folder path beneath the model name.")
+    return _sanitize_plugin_path("/".join(relative_parts))
+
+
+def _validate_plugin_destination(destination: Path, model_name: str) -> None:
+    model_indices = [index for index, part in enumerate(destination.parts) if part == model_name]
+    if not model_indices or model_indices[-1] == len(destination.parts) - 1:
+        raise ValueError(
+            "Artifact plugin output_dir must point to a plugin directory under "
+            f"'.../{model_name}/<plugin>/' so the plugin name can be derived from the folder path."
+        )
 
 
 def _iter_plugin_dirs_from_collection(
@@ -104,10 +134,11 @@ def discover_artifact_plugin_paths(
 
 def _load_plugin_payload(plugin_dir: PluginDirectory) -> dict[str, Any]:
     manifest = _read_json(plugin_dir.joinpath(ARTIFACT_PLUGIN_MANIFEST))
+    model_name = str(manifest["model_name"])
     return {
         "plugin_path": str(plugin_dir),
-        "plugin_name": str(manifest.get("plugin_name") or plugin_dir.name),
-        "model_name": str(manifest["model_name"]),
+        "plugin_name": _derive_plugin_name(plugin_dir, model_name),
+        "model_name": model_name,
         "description": str(manifest.get("description") or ""),
         "is_default_model": bool(manifest.get("is_default_model", False)),
         "metadata": dict(manifest.get("metadata") or {}),
@@ -258,7 +289,6 @@ def _normalize_controller_entries(entries: Sequence[Any] | None) -> list[dict[st
 def write_artifact_plugin(
     output_dir: str | Path,
     model_name: str,
-    plugin_name: str,
     *,
     description: str = "",
     activations: Sequence[Any] | None = None,
@@ -267,12 +297,13 @@ def write_artifact_plugin(
     metadata: Mapping[str, Any] | None = None,
     is_default_model: bool = False,
 ) -> Path:
-    destination = Path(output_dir) / "models" / model_name / plugin_name
+    destination = Path(output_dir)
+    _validate_plugin_destination(destination, model_name)
+    plugin_name = _derive_plugin_name(destination, model_name)
     destination.mkdir(parents=True, exist_ok=True)
 
     manifest = {
         "schema_version": ARTIFACT_PLUGIN_FORMAT_VERSION,
-        "plugin_name": plugin_name,
         "model_name": model_name,
         "description": description,
         "is_default_model": is_default_model,
@@ -332,7 +363,6 @@ def merge_artifact_plugins(
     *,
     model_name: str | None = None,
     plugin_roots: PluginRootInput = None,
-    merged_plugin_name: str = "merged",
     description: str = "",
     metadata: Mapping[str, Any] | None = None,
 ) -> Path:
@@ -340,7 +370,6 @@ def merge_artifact_plugins(
     return write_artifact_plugin(
         output_dir=output_dir,
         model_name=bundle["model_name"],
-        plugin_name=merged_plugin_name,
         description=description or bundle["description"],
         activations=bundle["activations"],
         feature_specs=bundle["feature_specs"],

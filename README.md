@@ -83,7 +83,7 @@ The repository also keeps a checked-in minimal-example artifact in source contro
 
 Persistent artifacts now also live in a plugin-style directory tree under `activation_steering/artifacts/models/<model>/<plugin>/`. The built-in GPT-2 starter bundle is checked in at `activation_steering/artifacts/models/gpt2/standard/`.
 
-Use `activation_steering.load_model_artifact_bundle(...)` to load and merge plugin bundles for a model, `activation_steering.load_artifact_steering_controllers(...)` to load shared controllers from those bundles, `activation_steering.write_artifact_plugin(...)` to create a distributable plugin tree, and `activation_steering.merge_artifact_plugins(...)` to collapse multiple bundles into one shareable pack.
+Use `activation_steering.load_model_artifact_bundle(...)` to load and merge plugin bundles for a model, `activation_steering.load_artifact_steering_controllers(...)` to load shared controllers from those bundles, `activation_steering.write_artifact_plugin(...)` to create a distributable plugin tree, and `activation_steering.merge_artifact_plugins(...)` to collapse multiple bundles into one shareable pack. Plugin identifiers are derived from the plugin folder path after sanitization rather than from an explicit name field.
 
 See `activation_steering/artifacts/README.md` for the layout, merge behavior, and a creation/distribution workflow.
 

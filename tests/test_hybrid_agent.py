@@ -72,9 +72,8 @@ def test_load_steering_controllers_coerces_integral_max_steps(tmp_path):
 def test_load_artifact_steering_controllers_reads_plugin_bundle(tmp_path, persistent_vectors_path):
     feature_vectors = json.loads(persistent_vectors_path.read_text(encoding="utf-8"))["feature_vectors"]
     steering.write_artifact_plugin(
-        tmp_path,
+        tmp_path / "models" / "gpt2" / "shared features",
         model_name="gpt2",
-        plugin_name="shared_features",
         controllers=feature_vectors,
     )
 

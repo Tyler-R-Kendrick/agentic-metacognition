@@ -553,9 +553,8 @@ def test_discover_artifact_plugin_paths_includes_builtin_standard_plugin():
 def test_load_model_artifact_bundle_merges_plugin_entries(tmp_path):
     plugin_root = tmp_path / "artifact-bundles"
     steering.write_artifact_plugin(
-        plugin_root,
+        plugin_root / "models" / "gpt2" / "base",
         model_name="gpt2",
-        plugin_name="base",
         description="Base bundle",
         activations=[
             {
@@ -592,9 +591,8 @@ def test_load_model_artifact_bundle_merges_plugin_entries(tmp_path):
         ],
     )
     steering.write_artifact_plugin(
-        plugin_root,
+        plugin_root / "models" / "gpt2" / "zz override",
         model_name="gpt2",
-        plugin_name="zz_override",
         activations=[
             {
                 "name": "retrieval_augmented_context",
@@ -629,6 +627,7 @@ def test_load_model_artifact_bundle_merges_plugin_entries(tmp_path):
     bundle = steering.load_model_artifact_bundle(model_name="gpt2", plugin_roots=plugin_root)
 
     assert bundle["model_name"] == "gpt2"
+    assert [plugin["plugin_name"] for plugin in bundle["plugins"]] == ["base", "zz-override"]
     assert {activation["name"] for activation in bundle["activations"]} == {
         "retrieval_augmented_context",
         "scratchpad_context",
@@ -648,9 +647,8 @@ def test_load_model_artifact_bundle_merges_plugin_entries(tmp_path):
 def test_merge_artifact_plugins_writes_merged_bundle(tmp_path):
     source_root = tmp_path / "source"
     steering.write_artifact_plugin(
-        source_root,
+        source_root / "models" / "gpt2" / "controllers only",
         model_name="gpt2",
-        plugin_name="controllers_only",
         controllers=[
             {
                 "name": "chain_of_thought",
@@ -664,10 +662,9 @@ def test_merge_artifact_plugins_writes_merged_bundle(tmp_path):
     )
 
     merged_plugin_path = steering.merge_artifact_plugins(
-        tmp_path / "merged",
+        tmp_path / "merged" / "models" / "gpt2" / "team pack",
         model_name="gpt2",
         plugin_roots=source_root,
-        merged_plugin_name="team_pack",
         description="Team merged bundle",
     )
 
@@ -678,6 +675,32 @@ def test_merge_artifact_plugins_writes_merged_bundle(tmp_path):
     )
     assert merged_bundle["controllers"][0]["controller_id"] == "chain_of_thought"
     assert merged_bundle["description"] == "Team merged bundle"
+    assert merged_bundle["plugins"][0]["plugin_name"] == "team-pack"
+
+
+def test_write_artifact_plugin_derives_name_from_sanitized_folder_path(tmp_path):
+    plugin_dir = tmp_path / "plugins" / "models" / "gpt2" / "team pack v1"
+
+    written_path = steering.write_artifact_plugin(
+        plugin_dir,
+        model_name="gpt2",
+        controllers=[
+            {
+                "name": "chain_of_thought",
+                "model_name": "gpt2",
+                "category": "reasoning_strategy",
+                "summary": "Path-derived controller summary.",
+                "layer_idx": 1,
+                "vector": [1.0, 0.0],
+            }
+        ],
+    )
+
+    manifest = json.loads(written_path.joinpath("plugin.json").read_text(encoding="utf-8"))
+    bundle = steering.load_model_artifact_bundle(model_name="gpt2", plugin_roots=tmp_path / "plugins")
+
+    assert "plugin_name" not in manifest
+    assert bundle["plugins"][0]["plugin_name"] == "team-pack-v1"
 
 
 def test_feature_example_round_trips_to_dict():
