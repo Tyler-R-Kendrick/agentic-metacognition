@@ -1,9 +1,0 @@
-{
-  "artifacts": {
-    "feature_vectors": "feature_vectors.json"
-  },
-  "description": "Capture responses that show intermediate reasoning before the final answer.",
-  "feature_name": "chain_of_thought",
-  "format_version": 1,
-  "model_name": "gpt2"
-}

@@ -1,9 +1,0 @@
-{
-  "artifacts": {
-    "feature_vectors": "feature_vectors.json"
-  },
-  "description": "Capture prompts that inject retrieved context alongside the task request.",
-  "feature_name": "retrieval_augmented_context",
-  "format_version": 1,
-  "model_name": "gpt2"
-}

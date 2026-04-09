@@ -6,19 +6,18 @@ Persistent artifacts are organized as model-scoped plugins so they can be copied
 
 ```text
 activation_steering/artifacts/
-└── models/
-    └── <model_name>/
-        └── <plugin_folder>/
-            ├── plugin.json
-            ├── activations.json      # optional
-            ├── feature_specs.json    # optional
-            └── controllers.json      # optional
+└── <model_name>/
+    └── <plugin_folder>/
+        ├── plugin.json
+        ├── activations.json      # optional
+        ├── feature_specs.json    # optional
+        └── controllers.json      # optional
 ```
 
 The built-in starter bundle lives at:
 
 ```text
-activation_steering/artifacts/models/gpt2/standard/
+activation_steering/artifacts/gpt2/standard/
 ```
 
 ## File responsibilities
@@ -34,7 +33,7 @@ All plugin files are optional except `plugin.json`, so a shared bundle can conta
 
 ## Merge behavior
 
-- plugins are discovered per model under `models/<model>/<plugin>/`
+- plugins are discovered per model under `<model>/<plugin>/`
 - entries are merged by name
 - later plugins win on duplicate keys
 - within one root, plugin directories are read in lexical order
@@ -45,7 +44,7 @@ This makes it easy to keep a stable base bundle and layer team-local or experime
 ## Create a plugin bundle
 
 1. Discover or collect the artifacts you want to share for one model.
-2. Choose the destination plugin directory under `models/<model>/...`.
+2. Choose the destination plugin directory under `<model>/...`.
 3. Write the bundle into that directory with `activation_steering.write_artifact_plugin(...)`.
 4. Commit or archive the resulting plugin directory.
 
@@ -61,7 +60,7 @@ Typical inputs:
 - `activation_steering.load_artifact_steering_controllers(model_name=..., plugin_roots=...)` loads merged controllers directly
 - `activation_steering.discover_artifact_plugin_paths(plugin_roots=...)` lists the plugin directories that will participate
 
-`plugin_roots` can point at a full artifact root that contains `models/`, a model directory, or an individual plugin directory.
+`plugin_roots` can point at a full artifact root that contains model directories, a model directory, or an individual plugin directory.
 
 ## Merge bundles into one distributable pack
 

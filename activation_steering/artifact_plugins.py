@@ -10,8 +10,8 @@ from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
 
 ARTIFACT_PLUGIN_ROOT = files("activation_steering").joinpath("artifacts")
-ARTIFACT_PLUGIN_MODELS_ROOT = ARTIFACT_PLUGIN_ROOT.joinpath("models")
-STANDARD_ARTIFACT_PLUGIN_PATH = ARTIFACT_PLUGIN_MODELS_ROOT.joinpath("gpt2", "standard")
+ARTIFACT_PLUGIN_MODELS_ROOT = ARTIFACT_PLUGIN_ROOT
+STANDARD_ARTIFACT_PLUGIN_PATH = ARTIFACT_PLUGIN_ROOT.joinpath("gpt2", "standard")
 ARTIFACT_PLUGIN_MANIFEST = "plugin.json"
 ACTIVATIONS_ARTIFACT = "activations.json"
 FEATURE_SPECS_ARTIFACT = "feature_specs.json"
@@ -118,10 +118,7 @@ def discover_artifact_plugin_paths(
                 seen.add(key)
             continue
 
-        if root.joinpath("models").is_dir():
-            candidates = _iter_plugin_dirs_from_collection(root.joinpath("models"), model_name=model_name)
-        else:
-            candidates = _iter_plugin_dirs_from_collection(root, model_name=model_name)
+        candidates = _iter_plugin_dirs_from_collection(root, model_name=model_name)
 
         for plugin_dir in candidates:
             key = str(plugin_dir)

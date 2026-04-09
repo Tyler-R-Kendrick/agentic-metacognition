@@ -545,7 +545,7 @@ def test_get_standard_activations_rejects_unknown_model():
 
 def test_discover_artifact_plugin_paths_includes_builtin_standard_plugin():
     plugin_paths = steering.discover_artifact_plugin_paths()
-    expected_suffix = ("activation_steering", "artifacts", "models", "gpt2", "standard")
+    expected_suffix = ("activation_steering", "artifacts", "gpt2", "standard")
 
     assert any(Path(path).parts[-len(expected_suffix) :] == expected_suffix for path in plugin_paths)
     assert steering.STANDARD_ARTIFACT_PLUGIN_PATH.joinpath("plugin.json").is_file()
@@ -554,7 +554,7 @@ def test_discover_artifact_plugin_paths_includes_builtin_standard_plugin():
 def test_load_model_artifact_bundle_merges_plugin_entries(tmp_path):
     plugin_root = tmp_path / "artifact-bundles"
     steering.write_artifact_plugin(
-        plugin_root / "models" / "gpt2" / "base",
+        plugin_root / "gpt2" / "base",
         model_name="gpt2",
         description="Base bundle",
         activations=[
@@ -592,7 +592,7 @@ def test_load_model_artifact_bundle_merges_plugin_entries(tmp_path):
         ],
     )
     steering.write_artifact_plugin(
-        plugin_root / "models" / "gpt2" / "override",
+        plugin_root / "gpt2" / "override",
         model_name="gpt2",
         activations=[
             {
@@ -648,7 +648,7 @@ def test_load_model_artifact_bundle_merges_plugin_entries(tmp_path):
 def test_merge_artifact_plugins_writes_merged_bundle(tmp_path):
     source_root = tmp_path / "source"
     steering.write_artifact_plugin(
-        source_root / "models" / "gpt2" / "controllers only",
+        source_root / "gpt2" / "controllers only",
         model_name="gpt2",
         metadata={"owner": "discovery-team", "tier": "base"},
         controllers=[
@@ -664,7 +664,7 @@ def test_merge_artifact_plugins_writes_merged_bundle(tmp_path):
     )
 
     merged_plugin_path = steering.merge_artifact_plugins(
-        tmp_path / "merged" / "models" / "gpt2" / "team pack",
+        tmp_path / "merged" / "gpt2" / "team pack",
         model_name="gpt2",
         plugin_roots=source_root,
         description="Team merged bundle",
@@ -692,7 +692,7 @@ def test_load_model_artifact_bundle_rejects_empty_plugin_roots(tmp_path):
 
 
 def test_write_artifact_plugin_derives_name_from_sanitized_folder_path(tmp_path):
-    plugin_dir = tmp_path / "plugins" / "models" / "gpt2" / "team pack v1"
+    plugin_dir = tmp_path / "plugins" / "gpt2" / "team pack v1"
 
     written_path = steering.write_artifact_plugin(
         plugin_dir,
@@ -717,7 +717,7 @@ def test_write_artifact_plugin_derives_name_from_sanitized_folder_path(tmp_path)
 
 
 def test_write_artifact_plugin_sanitizes_special_characters_in_folder_path(tmp_path):
-    plugin_dir = tmp_path / "plugins" / "models" / "gpt2" / "team   pack@v1"
+    plugin_dir = tmp_path / "plugins" / "gpt2" / "team   pack@v1"
 
     steering.write_artifact_plugin(
         plugin_dir,
@@ -937,32 +937,3 @@ def test_discover_and_store_feature_vectors_runs_minimal_flow(tokenizer, tmp_pat
     assert all(item["vector_size"] == model.config.n_embd for item in payload["feature_vectors"])
     assert all(item["vector_norm"] > 0.0 for item in payload["feature_vectors"])
     assert all(vector.vector.shape == (model.config.n_embd,) for vector in discovered_vectors)
-
-
-def test_discover_and_store_feature_vector_plugin_writes_per_feature_layout(tokenizer, tmp_path):
-    model = make_gpt2_model(tokenizer)
-    feature_specs = steering.get_standard_feature_specs()
-
-    discovered_vectors = steering.discover_and_store_feature_vector_plugin(
-        feature_specs=feature_specs,
-        layer_idx=1,
-        model=model,
-        tokenizer=tokenizer,
-        device="cpu",
-        artifact_root=tmp_path,
-        model_name="gpt2",
-    )
-
-    assert len(discovered_vectors) == len(feature_specs)
-    for vector in discovered_vectors:
-        feature_dir = tmp_path / "gpt2" / vector.name
-        payload_path = feature_dir / steering.ARTIFACT_PLUGIN_FEATURE_VECTORS_NAME
-        manifest_path = feature_dir / steering.ARTIFACT_PLUGIN_MANIFEST_NAME
-        assert payload_path.is_file(), f"Missing feature_vectors.json for {vector.name}"
-        assert manifest_path.is_file(), f"Missing plugin.json for {vector.name}"
-        payload = json.loads(payload_path.read_text(encoding="utf-8"))
-        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-        assert payload["feature_vector_count"] == 1
-        assert payload["feature_vectors"][0]["name"] == vector.name
-        assert manifest["feature_name"] == vector.name
-        assert manifest["model_name"] == "gpt2"

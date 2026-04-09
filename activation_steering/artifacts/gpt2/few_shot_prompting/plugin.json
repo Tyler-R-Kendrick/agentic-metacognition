@@ -1,9 +1,0 @@
-{
-  "artifacts": {
-    "feature_vectors": "feature_vectors.json"
-  },
-  "description": "Capture prompts that rely on a few exemplars before the target task.",
-  "feature_name": "few_shot_prompting",
-  "format_version": 1,
-  "model_name": "gpt2"
-}
