@@ -545,8 +545,9 @@ def test_get_standard_activations_rejects_unknown_model():
 
 def test_discover_artifact_plugin_paths_includes_builtin_standard_plugin():
     plugin_paths = steering.discover_artifact_plugin_paths()
+    expected_suffix = ("activation_steering", "artifacts", "models", "gpt2", "standard")
 
-    assert any(str(path).endswith("activation_steering/artifacts/models/gpt2/standard") for path in plugin_paths)
+    assert any(Path(path).parts[-len(expected_suffix) :] == expected_suffix for path in plugin_paths)
     assert steering.STANDARD_ARTIFACT_PLUGIN_PATH.joinpath("plugin.json").is_file()
 
 
@@ -591,7 +592,7 @@ def test_load_model_artifact_bundle_merges_plugin_entries(tmp_path):
         ],
     )
     steering.write_artifact_plugin(
-        plugin_root / "models" / "gpt2" / "zz override",
+        plugin_root / "models" / "gpt2" / "override",
         model_name="gpt2",
         activations=[
             {
@@ -627,7 +628,7 @@ def test_load_model_artifact_bundle_merges_plugin_entries(tmp_path):
     bundle = steering.load_model_artifact_bundle(model_name="gpt2", plugin_roots=plugin_root)
 
     assert bundle["model_name"] == "gpt2"
-    assert [plugin["plugin_name"] for plugin in bundle["plugins"]] == ["base", "zz-override"]
+    assert [plugin["plugin_name"] for plugin in bundle["plugins"]] == ["base", "override"]
     assert {activation["name"] for activation in bundle["activations"]} == {
         "retrieval_augmented_context",
         "scratchpad_context",
@@ -649,6 +650,7 @@ def test_merge_artifact_plugins_writes_merged_bundle(tmp_path):
     steering.write_artifact_plugin(
         source_root / "models" / "gpt2" / "controllers only",
         model_name="gpt2",
+        metadata={"owner": "discovery-team", "tier": "base"},
         controllers=[
             {
                 "name": "chain_of_thought",
@@ -666,6 +668,7 @@ def test_merge_artifact_plugins_writes_merged_bundle(tmp_path):
         model_name="gpt2",
         plugin_roots=source_root,
         description="Team merged bundle",
+        metadata={"tier": "merged", "release": "2026.04"},
     )
 
     assert merged_plugin_path.joinpath("plugin.json").is_file()
@@ -676,6 +679,16 @@ def test_merge_artifact_plugins_writes_merged_bundle(tmp_path):
     assert merged_bundle["controllers"][0]["controller_id"] == "chain_of_thought"
     assert merged_bundle["description"] == "Team merged bundle"
     assert merged_bundle["plugins"][0]["plugin_name"] == "team-pack"
+    assert merged_bundle["metadata"] == {
+        "owner": "discovery-team",
+        "tier": "merged",
+        "release": "2026.04",
+    }
+
+
+def test_load_model_artifact_bundle_rejects_empty_plugin_roots(tmp_path):
+    with pytest.raises(ValueError, match="No artifact plugins found"):
+        steering.load_model_artifact_bundle(model_name="gpt2", plugin_roots=tmp_path)
 
 
 def test_write_artifact_plugin_derives_name_from_sanitized_folder_path(tmp_path):

@@ -249,6 +249,10 @@ def load_model_artifact_bundle(
     plugin_roots: PluginRootInput = None,
 ) -> dict[str, Any]:
     catalog = load_artifact_plugin_catalog(plugin_roots=plugin_roots)
+    if not catalog["models"]:
+        raise ValueError(
+            f"No artifact plugins found for plugin_roots={plugin_roots!r}."
+        )
     selected_model = model_name or catalog["default_model"]
     if selected_model is None or selected_model not in catalog["models"]:
         available_models = ", ".join(sorted(catalog["models"]))
@@ -366,6 +370,8 @@ def merge_artifact_plugins(
     metadata: Mapping[str, Any] | None = None,
 ) -> Path:
     bundle = load_model_artifact_bundle(model_name=model_name, plugin_roots=plugin_roots)
+    merged_metadata = dict(bundle["metadata"])
+    merged_metadata.update(metadata or {})
     return write_artifact_plugin(
         output_dir=output_dir,
         model_name=bundle["model_name"],
@@ -373,6 +379,6 @@ def merge_artifact_plugins(
         activations=bundle["activations"],
         feature_specs=bundle["feature_specs"],
         controllers=bundle["controllers"],
-        metadata=metadata,
+        metadata=merged_metadata,
         is_default_model=bundle["model_name"] == bundle["default_model"],
     )
