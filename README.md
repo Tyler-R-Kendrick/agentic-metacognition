@@ -57,7 +57,7 @@ Open `notebooks/hybrid_meta_cognition_agent.ipynb` for a reusable hybrid-agent e
 - routes a task through planner, retrieval, steering, verification, and memory write-back
 - keeps the demo logic in the notebook while using the shared library implementation
 
-Open `notebooks/chat_feature_adaptation_showcase.ipynb` for an explanatory local demo of:
+Open `notebooks/adaptive_feature_steering.ipynb` for an explanatory local demo of adaptive feature steering:
 
 - discovering a new interaction feature from a chat transcript
 - monitoring drift from a goal that depends on that discovered feature
