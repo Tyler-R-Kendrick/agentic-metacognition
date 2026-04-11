@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import importlib.util
 import sys
 from pathlib import Path
@@ -7,16 +8,32 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SKILL_CREATOR_ROOT = REPO_ROOT / "skills" / "skill-creator"
-sys.path.insert(0, str(SKILL_CREATOR_ROOT))
 
-spec = importlib.util.spec_from_file_location(
-    "skill_creator_run_loop",
-    SKILL_CREATOR_ROOT / "scripts" / "run_loop.py",
-)
-assert spec is not None
-assert spec.loader is not None
-run_loop_module = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(run_loop_module)
+
+@contextlib.contextmanager
+def _temporary_sys_path(path: Path):
+    original_sys_path = list(sys.path)
+    sys.path.insert(0, str(path))
+    try:
+        yield
+    finally:
+        sys.path[:] = original_sys_path
+
+
+def _load_run_loop_module():
+    spec = importlib.util.spec_from_file_location(
+        "skill_creator_run_loop",
+        SKILL_CREATOR_ROOT / "scripts" / "run_loop.py",
+    )
+    assert spec is not None
+    assert spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    with _temporary_sys_path(SKILL_CREATOR_ROOT):
+        spec.loader.exec_module(module)
+    return module
+
+
+run_loop_module = _load_run_loop_module()
 
 
 def test_run_loop_honors_min_iterations_before_early_exit(tmp_path, monkeypatch) -> None:
