@@ -1,0 +1,53 @@
+{
+  "skill_name": "feature-discovery",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "help me define a FeatureSpec for concise evidence-backed summaries, with positive and negative extraction examples plus evaluation criteria, then discover and save the vectors",
+      "query": "help me define a FeatureSpec for concise evidence-backed summaries, with positive and negative extraction examples plus evaluation criteria, then discover and save the vectors",
+      "should_trigger": true,
+      "expected_output": "Trigger the skill.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "i have prompt/output transcripts and want to turn them into an interaction feature spec in the standard catalog and persist the discovered steering vectors",
+      "query": "i have prompt/output transcripts and want to turn them into an interaction feature spec in the standard catalog and persist the discovered steering vectors",
+      "should_trigger": true,
+      "expected_output": "Trigger the skill.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "what is the difference between FeatureSpec and EvaluationCriterion in this repo?",
+      "query": "what is the difference between FeatureSpec and EvaluationCriterion in this repo?",
+      "should_trigger": false,
+      "expected_output": "Do not trigger the skill.",
+      "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "create a new cognitive feature called uncertainty_awareness with labeled examples, test cases, and evaluation rules that we can run through discover_feature_vectors",
+      "query": "create a new cognitive feature called uncertainty_awareness with labeled examples, test cases, and evaluation rules that we can run through discover_feature_vectors",
+      "should_trigger": true,
+      "expected_output": "Trigger the skill.",
+      "files": []
+    },
+    {
+      "id": 5,
+      "prompt": "edit README.md to describe the feature catalog section more clearly",
+      "query": "edit README.md to describe the feature catalog section more clearly",
+      "should_trigger": false,
+      "expected_output": "Do not trigger the skill.",
+      "files": []
+    },
+    {
+      "id": 6,
+      "prompt": "show me where discover_interaction_features builds its feature_id format and explain the pattern",
+      "query": "show me where discover_interaction_features builds its feature_id format and explain the pattern",
+      "should_trigger": false,
+      "expected_output": "Do not trigger the skill.",
+      "files": []
+    }
+  ]
+}

@@ -1,0 +1,53 @@
+{
+  "skill_name": "skill-creator",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "i drafted a new Claude skill and want you to write eval prompts, benchmark it against a baseline, and iterate on the SKILL.md until the results improve",
+      "query": "i drafted a new Claude skill and want you to write eval prompts, benchmark it against a baseline, and iterate on the SKILL.md until the results improve",
+      "should_trigger": true,
+      "expected_output": "Trigger the skill.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "please optimize the description field for my existing skill using trigger evals and a few trainer iterations",
+      "query": "please optimize the description field for my existing skill using trigger evals and a few trainer iterations",
+      "should_trigger": true,
+      "expected_output": "Trigger the skill.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "what does YAML frontmatter mean in a SKILL.md file?",
+      "query": "what does YAML frontmatter mean in a SKILL.md file?",
+      "should_trigger": false,
+      "expected_output": "Do not trigger the skill.",
+      "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "compare two versions of my skill, run qualitative and quantitative evals, and package the final skill when we are done",
+      "query": "compare two versions of my skill, run qualitative and quantitative evals, and package the final skill when we are done",
+      "should_trigger": true,
+      "expected_output": "Trigger the skill.",
+      "files": []
+    },
+    {
+      "id": 5,
+      "prompt": "help me rename a markdown heading in skills/gh-aw/SKILL.md",
+      "query": "help me rename a markdown heading in skills/gh-aw/SKILL.md",
+      "should_trigger": false,
+      "expected_output": "Do not trigger the skill.",
+      "files": []
+    },
+    {
+      "id": 6,
+      "prompt": "generate an eval viewer for my skill outputs so i can review feedback before the next revision",
+      "query": "generate an eval viewer for my skill outputs so i can review feedback before the next revision",
+      "should_trigger": true,
+      "expected_output": "Trigger the skill.",
+      "files": []
+    }
+  ]
+}

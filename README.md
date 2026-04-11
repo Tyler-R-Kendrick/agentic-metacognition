@@ -48,17 +48,17 @@ A daily GitHub Agentic Workflow source lives at `.github/workflows/daily-gh-aw-t
 
 ### Agent skills
 
-The repository includes Copilot agent skills under `.github/skills/` that expose the package's capabilities to AI coding assistants. Each skill follows the [Anthropic SKILL.md convention](https://github.com/anthropics/skills) with YAML frontmatter metadata and markdown instructions.
+The repository includes Copilot agent skills under `skills/` and mirrors them into `~/.agents/skills` for local discovery. Each skill follows the [Anthropic SKILL.md convention](https://github.com/anthropics/skills) with YAML frontmatter metadata and markdown instructions.
 
 | Skill | Description |
 |-------|-------------|
-| [`steering`](.github/skills/steering/SKILL.md) | `/steering` command — run feature discovery for a model and optional feature, auto-generate data, extract vectors, output artifacts |
-| [`feature-discovery`](.github/skills/feature-discovery/SKILL.md) | Define feature specs, discover steering vectors from labeled examples, manage feature catalogs |
-| [`artifact-plugins`](.github/skills/artifact-plugins/SKILL.md) | Create, load, merge, and distribute persistent artifact plugin bundles |
-| [`hybrid-agent`](.github/skills/hybrid-agent/SKILL.md) | Operate the planner/retriever/steered-executor/verifier agent loop with persistent memory |
-| [`graphrag`](.github/skills/graphrag/SKILL.md) | Persist and query Neo4j-backed reasoning trajectory graphs with PathRAG retrieval |
-| [`gh-aw`](.github/skills/gh-aw/SKILL.md) | Create, compile, validate, and run GitHub Agentic Workflows with the `gh-aw` CLI |
-| [`skill-creator`](.github/skills/skill-creator/SKILL.md) | Create new skills, run evals, benchmark performance, and optimize skill descriptions (from [anthropics/skills](https://github.com/anthropics/skills)) |
+| [`steering`](skills/steering/SKILL.md) | `/steering` command — run feature discovery for a model and optional feature, auto-generate data, extract vectors, output artifacts |
+| [`feature-discovery`](skills/feature-discovery/SKILL.md) | Define feature specs, discover steering vectors from labeled examples, manage feature catalogs |
+| [`artifact-plugins`](skills/artifact-plugins/SKILL.md) | Create, load, merge, and distribute persistent artifact plugin bundles |
+| [`hybrid-agent`](skills/hybrid-agent/SKILL.md) | Operate the planner/retriever/steered-executor/verifier agent loop with persistent memory |
+| [`graphrag`](skills/graphrag/SKILL.md) | Persist and query Neo4j-backed reasoning trajectory graphs with PathRAG retrieval |
+| [`gh-aw`](skills/gh-aw/SKILL.md) | Create, compile, validate, and run GitHub Agentic Workflows with the `gh-aw` CLI |
+| [`skill-creator`](skills/skill-creator/SKILL.md) | Create new skills, run evals, benchmark performance, and optimize skill descriptions (from [anthropics/skills](https://github.com/anthropics/skills)) |
 
 ### Notebook examples
 
