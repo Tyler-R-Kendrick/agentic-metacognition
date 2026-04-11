@@ -1,0 +1,53 @@
+{
+  "skill_name": "artifact-plugins",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "merge two gpt2 artifact plugin bundles into one distributable pack and make sure controllers.json and feature_specs.json are preserved",
+      "query": "merge two gpt2 artifact plugin bundles into one distributable pack and make sure controllers.json and feature_specs.json are preserved",
+      "should_trigger": true,
+      "expected_output": "Trigger the skill.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "create a new artifact plugin directory for gpt2 under activation_steering/artifacts with plugin.json, activations.json, and controllers.json filled in from my discovered vectors",
+      "query": "create a new artifact plugin directory for gpt2 under activation_steering/artifacts with plugin.json, activations.json, and controllers.json filled in from my discovered vectors",
+      "should_trigger": true,
+      "expected_output": "Trigger the skill.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "explain the current activation_steering/artifacts directory layout in this repo",
+      "query": "explain the current activation_steering/artifacts directory layout in this repo",
+      "should_trigger": false,
+      "expected_output": "Do not trigger the skill.",
+      "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "load the shared steering controllers from a model artifact bundle and tell me how plugin identifiers are derived from folder names",
+      "query": "load the shared steering controllers from a model artifact bundle and tell me how plugin identifiers are derived from folder names",
+      "should_trigger": true,
+      "expected_output": "Trigger the skill.",
+      "files": []
+    },
+    {
+      "id": 5,
+      "prompt": "write a README for our artifact distribution workflow",
+      "query": "write a README for our artifact distribution workflow",
+      "should_trigger": false,
+      "expected_output": "Do not trigger the skill.",
+      "files": []
+    },
+    {
+      "id": 6,
+      "prompt": "i need to combine three plugin bundles and ship a single shareable artifact pack for gpt2",
+      "query": "i need to combine three plugin bundles and ship a single shareable artifact pack for gpt2",
+      "should_trigger": true,
+      "expected_output": "Trigger the skill.",
+      "files": []
+    }
+  ]
+}

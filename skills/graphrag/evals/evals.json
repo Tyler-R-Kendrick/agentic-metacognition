@@ -1,0 +1,53 @@
+{
+  "skill_name": "graphrag",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "set up a Neo4jGraphStore and Neo4jPathRAGRetriever so our hybrid agent can persist task plans, subgoals, and verifier outcomes and retrieve evidence paths later",
+      "query": "set up a Neo4jGraphStore and Neo4jPathRAGRetriever so our hybrid agent can persist task plans, subgoals, and verifier outcomes and retrieve evidence paths later",
+      "should_trigger": true,
+      "expected_output": "Trigger the skill.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "i need a GraphTaskPlan with explicit constraints and ordered subgoals, plus the Cypher-backed storage flow for recording drift corrections",
+      "query": "i need a GraphTaskPlan with explicit constraints and ordered subgoals, plus the Cypher-backed storage flow for recording drift corrections",
+      "should_trigger": true,
+      "expected_output": "Trigger the skill.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "what are the GraphConstraint fields in activation_steering/graphrag.py?",
+      "query": "what are the GraphConstraint fields in activation_steering/graphrag.py?",
+      "should_trigger": false,
+      "expected_output": "Do not trigger the skill.",
+      "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "help me attach observed interaction features to graph state nodes and query analogous prior reasoning paths from Neo4j",
+      "query": "help me attach observed interaction features to graph state nodes and query analogous prior reasoning paths from Neo4j",
+      "should_trigger": true,
+      "expected_output": "Trigger the skill.",
+      "files": []
+    },
+    {
+      "id": 5,
+      "prompt": "debug why neo4j isn't installed in my dev container",
+      "query": "debug why neo4j isn't installed in my dev container",
+      "should_trigger": false,
+      "expected_output": "Do not trigger the skill.",
+      "files": []
+    },
+    {
+      "id": 6,
+      "prompt": "explain the difference between graph_state.json and graph_state.svg artifacts",
+      "query": "explain the difference between graph_state.json and graph_state.svg artifacts",
+      "should_trigger": false,
+      "expected_output": "Do not trigger the skill.",
+      "files": []
+    }
+  ]
+}

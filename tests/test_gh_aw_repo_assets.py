@@ -74,8 +74,8 @@ def test_gh_aw_skill_links_reference_docs_for_all_documented_commands() -> None:
         'validate',
         'version',
     }
-    skill_text = (REPO_ROOT / '.github' / 'skills' / 'gh-aw' / 'SKILL.md').read_text(encoding='utf-8')
-    reference_dir = REPO_ROOT / '.github' / 'skills' / 'gh-aw' / 'references'
+    skill_text = (REPO_ROOT / 'skills' / 'gh-aw' / 'SKILL.md').read_text(encoding='utf-8')
+    reference_dir = REPO_ROOT / 'skills' / 'gh-aw' / 'references'
     actual_commands = {path.stem for path in reference_dir.glob('*.md')}
 
     assert actual_commands == expected_commands

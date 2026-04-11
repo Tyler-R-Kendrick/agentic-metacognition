@@ -1,0 +1,53 @@
+{
+  "skill_name": "gh-aw",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "create a new GitHub Agentic Workflow in .github/workflows that opens an issue when our daily benchmark regresses, then compile and validate it with gh aw",
+      "query": "create a new GitHub Agentic Workflow in .github/workflows that opens an issue when our daily benchmark regresses, then compile and validate it with gh aw",
+      "should_trigger": true,
+      "expected_output": "Trigger the skill.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "the daily-gh-aw-training workflow changed; recompile the markdown source into the lockfile and verify the workflow still validates",
+      "query": "the daily-gh-aw-training workflow changed; recompile the markdown source into the lockfile and verify the workflow still validates",
+      "should_trigger": true,
+      "expected_output": "Trigger the skill.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "explain what daily-gh-aw-training.md does today",
+      "query": "explain what daily-gh-aw-training.md does today",
+      "should_trigger": false,
+      "expected_output": "Do not trigger the skill.",
+      "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "debug a gh aw validate failure and check the workflow logs for the latest run",
+      "query": "debug a gh aw validate failure and check the workflow logs for the latest run",
+      "should_trigger": true,
+      "expected_output": "Trigger the skill.",
+      "files": []
+    },
+    {
+      "id": 5,
+      "prompt": "update .gitattributes for generated lock files and make sure the workflow source remains the canonical file",
+      "query": "update .gitattributes for generated lock files and make sure the workflow source remains the canonical file",
+      "should_trigger": true,
+      "expected_output": "Trigger the skill.",
+      "files": []
+    },
+    {
+      "id": 6,
+      "prompt": "write unit tests for tests/test_gh_aw_repo_assets.py",
+      "query": "write unit tests for tests/test_gh_aw_repo_assets.py",
+      "should_trigger": false,
+      "expected_output": "Do not trigger the skill.",
+      "files": []
+    }
+  ]
+}

@@ -21,6 +21,27 @@ from scripts.run_eval import find_project_root, run_eval
 from scripts.utils import parse_skill_md
 
 
+def load_eval_set(eval_set_path: Path) -> list[dict]:
+    """Load trigger evals from either a raw trigger array or evals.json schema."""
+    payload = json.loads(eval_set_path.read_text())
+    if isinstance(payload, list):
+        return payload
+    if isinstance(payload, dict) and isinstance(payload.get("evals"), list):
+        normalized: list[dict] = []
+        for item in payload["evals"]:
+            if "should_trigger" not in item:
+                raise ValueError(f"Missing should_trigger in {eval_set_path}")
+            query = item.get("query") or item.get("prompt")
+            if not query:
+                raise ValueError(f"Missing prompt/query in {eval_set_path}")
+            normalized.append({
+                "query": query,
+                "should_trigger": item["should_trigger"],
+            })
+        return normalized
+    raise ValueError(f"Unsupported eval-set format in {eval_set_path}")
+
+
 def split_eval_set(eval_set: list[dict], holdout: float, seed: int = 42) -> tuple[list[dict], list[dict]]:
     """Split eval set into train and test sets, stratified by should_trigger."""
     random.seed(seed)
@@ -51,6 +72,7 @@ def run_loop(
     num_workers: int,
     timeout: int,
     max_iterations: int,
+    min_iterations: int,
     runs_per_query: int,
     trigger_threshold: float,
     holdout: float,
@@ -174,11 +196,20 @@ def run_loop(
             if test_summary:
                 print_eval_stats("Test ", test_results["results"], 0)
 
-        if train_summary["failed"] == 0:
+        if train_summary["failed"] == 0 and iteration >= min_iterations:
             exit_reason = f"all_passed (iteration {iteration})"
             if verbose:
                 print(f"\nAll train queries passed on iteration {iteration}!", file=sys.stderr)
             break
+
+        if train_summary["failed"] == 0:
+            if verbose:
+                print(
+                    f"\nAll train queries passed on iteration {iteration}, "
+                    f"but continuing until min_iterations={min_iterations}.",
+                    file=sys.stderr,
+                )
+            continue
 
         if iteration == max_iterations:
             exit_reason = f"max_iterations ({max_iterations})"
@@ -249,6 +280,7 @@ def main():
     parser.add_argument("--num-workers", type=int, default=10, help="Number of parallel workers")
     parser.add_argument("--timeout", type=int, default=30, help="Timeout per query in seconds")
     parser.add_argument("--max-iterations", type=int, default=5, help="Max improvement iterations")
+    parser.add_argument("--min-iterations", type=int, default=1, help="Minimum evaluation iterations before exiting early")
     parser.add_argument("--runs-per-query", type=int, default=3, help="Number of runs per query")
     parser.add_argument("--trigger-threshold", type=float, default=0.5, help="Trigger rate threshold")
     parser.add_argument("--holdout", type=float, default=0.4, help="Fraction of eval set to hold out for testing (0 to disable)")
@@ -258,11 +290,18 @@ def main():
     parser.add_argument("--results-dir", default=None, help="Save all outputs (results.json, report.html, log.txt) to a timestamped subdirectory here")
     args = parser.parse_args()
 
-    eval_set = json.loads(Path(args.eval_set).read_text())
+    eval_set = load_eval_set(Path(args.eval_set))
     skill_path = Path(args.skill_path)
 
     if not (skill_path / "SKILL.md").exists():
         print(f"Error: No SKILL.md found at {skill_path}", file=sys.stderr)
+        sys.exit(1)
+
+    if args.min_iterations < 1:
+        print("Error: --min-iterations must be at least 1", file=sys.stderr)
+        sys.exit(1)
+    if args.max_iterations < args.min_iterations:
+        print("Error: --max-iterations must be >= --min-iterations", file=sys.stderr)
         sys.exit(1)
 
     name, _, _ = parse_skill_md(skill_path)
@@ -297,6 +336,7 @@ def main():
         num_workers=args.num_workers,
         timeout=args.timeout,
         max_iterations=args.max_iterations,
+        min_iterations=args.min_iterations,
         runs_per_query=args.runs_per_query,
         trigger_threshold=args.trigger_threshold,
         holdout=args.holdout,

@@ -1,0 +1,53 @@
+{
+  "skill_name": "hybrid-agent",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "build a HybridMetaCognitionAgent that plans, retrieves, applies a named steering controller, verifies the answer, and writes runtime artifacts to disk",
+      "query": "build a HybridMetaCognitionAgent that plans, retrieves, applies a named steering controller, verifies the answer, and writes runtime artifacts to disk",
+      "should_trigger": true,
+      "expected_output": "Trigger the skill.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "show me how to wire InMemorySteeringMemory and SteeredExecutor into a reusable planner/retriever/verifier loop for this package",
+      "query": "show me how to wire InMemorySteeringMemory and SteeredExecutor into a reusable planner/retriever/verifier loop for this package",
+      "should_trigger": true,
+      "expected_output": "Trigger the skill.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "explain what the planner stage does inside activation_steering/agent.py",
+      "query": "explain what the planner stage does inside activation_steering/agent.py",
+      "should_trigger": false,
+      "expected_output": "Do not trigger the skill.",
+      "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "create a custom agent loop around HybridMetaCognitionAgent that reloads persisted controllers before each run and closes cleanly afterward",
+      "query": "create a custom agent loop around HybridMetaCognitionAgent that reloads persisted controllers before each run and closes cleanly afterward",
+      "should_trigger": true,
+      "expected_output": "Trigger the skill.",
+      "files": []
+    },
+    {
+      "id": 5,
+      "prompt": "fix a bug in tests/test_hybrid_agent.py where a verifier assertion is failing",
+      "query": "fix a bug in tests/test_hybrid_agent.py where a verifier assertion is failing",
+      "should_trigger": false,
+      "expected_output": "Do not trigger the skill.",
+      "files": []
+    },
+    {
+      "id": 6,
+      "prompt": "summarize the hybrid meta-cognition notebook in plain english",
+      "query": "summarize the hybrid meta-cognition notebook in plain english",
+      "should_trigger": false,
+      "expected_output": "Do not trigger the skill.",
+      "files": []
+    }
+  ]
+}

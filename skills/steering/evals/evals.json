@@ -1,0 +1,53 @@
+{
+  "skill_name": "steering",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "use /steering on gpt2 for a truthfulness feature and write the artifacts into ./tmp/truthfulness-artifacts",
+      "query": "use /steering on gpt2 for a truthfulness feature and write the artifacts into ./tmp/truthfulness-artifacts",
+      "should_trigger": true,
+      "expected_output": "Trigger the skill.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "i want to steer mistral-7b toward chain_of_thought behavior; generate whatever labeled examples are missing and save the resulting plugin bundle",
+      "query": "i want to steer mistral-7b toward chain_of_thought behavior; generate whatever labeled examples are missing and save the resulting plugin bundle",
+      "should_trigger": true,
+      "expected_output": "Trigger the skill.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "please inspect activation_steering/steering_command.py and explain how run_steering chooses a default feature when none is supplied",
+      "query": "please inspect activation_steering/steering_command.py and explain how run_steering chooses a default feature when none is supplied",
+      "should_trigger": false,
+      "expected_output": "Do not trigger the skill.",
+      "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "compare the baseline and steered generations in notebooks/minimal_activation_steering.ipynb and summarize the notebook steps",
+      "query": "compare the baseline and steered generations in notebooks/minimal_activation_steering.ipynb and summarize the notebook steps",
+      "should_trigger": false,
+      "expected_output": "Do not trigger the skill.",
+      "files": []
+    },
+    {
+      "id": 5,
+      "prompt": "extract a new few_shot_prompting steering vector for gpt2 from my positive and negative examples and persist the output artifacts",
+      "query": "extract a new few_shot_prompting steering vector for gpt2 from my positive and negative examples and persist the output artifacts",
+      "should_trigger": true,
+      "expected_output": "Trigger the skill.",
+      "files": []
+    },
+    {
+      "id": 6,
+      "prompt": "fix the failing pytest around train_probe and generate_with_adaptive_steering",
+      "query": "fix the failing pytest around train_probe and generate_with_adaptive_steering",
+      "should_trigger": false,
+      "expected_output": "Do not trigger the skill.",
+      "files": []
+    }
+  ]
+}
