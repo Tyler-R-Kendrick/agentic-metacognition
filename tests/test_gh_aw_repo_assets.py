@@ -28,6 +28,7 @@ def test_copilot_setup_steps_installs_repo_dependencies_and_gh_aw() -> None:
 
 def test_daily_training_workflow_delegates_feature_issue_to_copilot() -> None:
     workflow_text = (REPO_ROOT / '.github' / 'workflows' / 'daily-gh-aw-training.md').read_text(encoding='utf-8')
+    lockfile_text = (REPO_ROOT / '.github' / 'workflows' / 'daily-gh-aw-training.lock.yml').read_text(encoding='utf-8')
 
     assert 'schedule: daily on weekdays' in workflow_text
     assert 'toolsets: [default, actions]' in workflow_text
@@ -40,6 +41,7 @@ def test_daily_training_workflow_delegates_feature_issue_to_copilot() -> None:
     assert 'tests/data/minimal_identified_feature_vectors.json' in workflow_text
     assert 'python -m pytest tests/ -q' in workflow_text
     assert 'call `noop`' in workflow_text
+    assert 'GITHUB_TOKEN: ${{ github.token }}' in lockfile_text
 
 
 def test_gh_aw_skill_links_reference_docs_for_all_documented_commands() -> None:
