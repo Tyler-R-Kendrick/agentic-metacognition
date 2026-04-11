@@ -99,3 +99,30 @@ def test_load_eval_set_accepts_evals_json_schema(tmp_path) -> None:
             "should_trigger": True,
         }
     ]
+
+
+def test_load_eval_set_rejects_entries_without_trigger_expectation(tmp_path) -> None:
+    eval_file = tmp_path / "evals.json"
+    eval_file.write_text(
+        """
+        {
+          "skill_name": "demo-skill",
+          "evals": [
+            {
+              "id": 1,
+              "prompt": "run the demo skill",
+              "expected_output": "Trigger the skill.",
+              "files": []
+            }
+          ]
+        }
+        """,
+        encoding="utf-8",
+    )
+
+    try:
+        run_loop_module.load_eval_set(eval_file)
+    except ValueError as exc:
+        assert "Missing should_trigger" in str(exc)
+    else:
+        raise AssertionError("Expected load_eval_set to reject eval entries without should_trigger")
